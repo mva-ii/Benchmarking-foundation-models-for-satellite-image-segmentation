@@ -1,0 +1,7 @@
+[project]
+name = "benchmarking-foundation-models-for-satellite-image-segmentation"
+version = "0.1.0"
+description = ""
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = []
