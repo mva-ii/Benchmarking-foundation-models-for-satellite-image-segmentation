@@ -105,9 +105,9 @@ class EmbeddingDataModule(L.LightningDataModule):
         self.test_fold = int(test_fold)
         self.subset_patch_ids = subset_patch_ids
 
-        self.train_ds = None
-        self.val_ds = None
-        self.test_ds = None
+        self.train_ds: Optional[PastisEmbeddingDataset] = None
+        self.val_ds: Optional[PastisEmbeddingDataset] = None
+        self.test_ds: Optional[PastisEmbeddingDataset] = None
 
     def setup(self, stage: str | None = None) -> None:
         pid_to_fold = read_pid_to_fold(self.pastis_root / "metadata.geojson")

@@ -84,7 +84,7 @@ class SegmentationMLPModule(L.LightningModule):
         )
 
         # --- Sauvegarde de prédictions ---
-        self._saved_pred_batches = []
+        self._saved_pred_batches: list[dict[str, torch.Tensor]] = []
         self.save_n_batches = (
             3  # nombre de batchs à sauvegarder (uniquement à la dernière époque)
         )
@@ -185,6 +185,7 @@ class SegmentationMLPModule(L.LightningModule):
         loss = self._loss(logits, mask)
 
         # Sauvegarde uniquement à la dernière époque, sur quelques batchs
+        assert self.trainer.max_epochs is not None
         if (
             self.current_epoch == self.trainer.max_epochs - 1
             and len(self._saved_pred_batches) < self.save_n_batches
@@ -226,11 +227,13 @@ class SegmentationMLPModule(L.LightningModule):
         self.val_f1_macro.reset()
 
         # On ne sauvegarde qu'à la dernière époque
+        assert self.trainer.max_epochs is not None
         if self.current_epoch != self.trainer.max_epochs - 1:
             return
         if not self._saved_pred_batches:
             return
-
+        assert self.trainer.logger is not None
+        assert self.trainer.logger.log_dir is not None
         save_dir = Path(self.trainer.logger.log_dir) / "saved_predictions"
         save_dir.mkdir(parents=True, exist_ok=True)
 

@@ -15,7 +15,9 @@ from fm_benchmark_remote_sensing.data.pastis_r_embedding_datamodule import (
     EmbeddingDataModule,
 )
 from fm_benchmark_remote_sensing.models.mlp_head import MLPHeadConfig
-from fm_benchmark_remote_sensing.lightning_module import SegmentationMLPModule
+from fm_benchmark_remote_sensing.models.segmentation_mlp_module import (
+    SegmentationMLPModule,
+)
 
 
 def head_in_dim(fm, pastis_root: Path) -> int:

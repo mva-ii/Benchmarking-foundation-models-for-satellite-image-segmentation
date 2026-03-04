@@ -64,7 +64,7 @@ _REQUIRED_KEYS = {
 
 def _clean_path(s: str) -> str:
     """
-    Nettoie un chemin copié depuis un terminal (souvent avec '\ ').
+    Nettoie un chemin copié depuis un terminal (souvent avec '\\ ').
     """
     return s.replace("\\ ", " ")
 
