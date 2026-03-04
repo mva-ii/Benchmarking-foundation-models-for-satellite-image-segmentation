@@ -9,11 +9,13 @@ import torch
 from lightning.pytorch.loggers import CSVLogger
 from lightning.pytorch.callbacks import ModelCheckpoint
 
-from my_code.config import load_config
-from my_code.models import build_fm
-from my_code.data.pastis_r_embedding_datamodule import EmbeddingDataModule
-from my_code.models.mlp_head import MLPHeadConfig
-from my_code.lightning_module import SegmentationMLPModule
+from fm_benchmark_remote_sensing.config import load_config
+from fm_benchmark_remote_sensing.models import build_fm
+from fm_benchmark_remote_sensing.data.pastis_r_embedding_datamodule import (
+    EmbeddingDataModule,
+)
+from fm_benchmark_remote_sensing.models.mlp_head import MLPHeadConfig
+from fm_benchmark_remote_sensing.lightning_module import SegmentationMLPModule
 
 
 def head_in_dim(fm, pastis_root: Path) -> int:
@@ -61,7 +63,9 @@ def main() -> None:
         hidden_dim_2=cfg.hidden_dim_2,
         num_classes=cfg.num_classes,
     )
-    model = SegmentationMLPModule(head_cfg=head_cfg, lr=cfg.lr, ignore_index=cfg.ignore_index)
+    model = SegmentationMLPModule(
+        head_cfg=head_cfg, lr=cfg.lr, ignore_index=cfg.ignore_index
+    )
 
     logger = CSVLogger(save_dir=cfg.out_dir, name=cfg.experiment_name)
 

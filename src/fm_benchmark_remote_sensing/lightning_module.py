@@ -12,7 +12,7 @@ from torchmetrics.classification import (
     MulticlassJaccardIndex,
 )
 
-from my_code.models.mlp_head import MLPHeadConfig, PixelMLPHead
+from fm_benchmark_remote_sensing.models.mlp_head import MLPHeadConfig, PixelMLPHead
 
 
 class SegmentationMLPModule(L.LightningModule):
@@ -85,7 +85,9 @@ class SegmentationMLPModule(L.LightningModule):
 
         # --- Sauvegarde de prédictions ---
         self._saved_pred_batches = []
-        self.save_n_batches = 3  # nombre de batchs à sauvegarder (uniquement à la dernière époque)
+        self.save_n_batches = (
+            3  # nombre de batchs à sauvegarder (uniquement à la dernière époque)
+        )
 
     def forward(self, embeddings: torch.Tensor) -> torch.Tensor:
         return self.head(embeddings)  # (B,H,W,K)
@@ -112,7 +114,7 @@ class SegmentationMLPModule(L.LightningModule):
 
         # Décalage pour rendre les classes contiguës.
         # Important : ne décaler que les pixels non ignorés.
-        keep = (m != self.ignore_index)
+        keep = m != self.ignore_index
         m[keep] = m[keep] - 1
 
         return m
@@ -131,7 +133,14 @@ class SegmentationMLPModule(L.LightningModule):
 
         logits = self(emb)
         loss = self._loss(logits, mask)
-        self.log("train/loss", loss, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
+        self.log(
+            "train/loss",
+            loss,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=True,
+            sync_dist=True,
+        )
 
         preds = torch.argmax(logits, dim=-1)
         self.train_miou.update(preds, mask)
@@ -192,7 +201,14 @@ class SegmentationMLPModule(L.LightningModule):
                 }
             )
 
-        self.log("val/loss", loss, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
+        self.log(
+            "val/loss",
+            loss,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=True,
+            sync_dist=True,
+        )
         return loss
 
     def on_validation_epoch_end(self) -> None:
@@ -240,10 +256,10 @@ class SegmentationMLPModule(L.LightningModule):
                 continue
 
             # Cas 2: un pid par élément du batch -> 1 fichier par pid
-            emb = data["embeddings"]        # (B,H,W,D) ou équivalent
-            tgt_orig = data["targets_orig"] # (B,H,W)
-            tgt = data["targets"]           # (B,H,W) remappé
-            log = data["logits"]            # (B,H,W,K)
+            emb = data["embeddings"]  # (B,H,W,D) ou équivalent
+            tgt_orig = data["targets_orig"]  # (B,H,W)
+            tgt = data["targets"]  # (B,H,W) remappé
+            log = data["logits"]  # (B,H,W,K)
 
             for j, pid_j in enumerate(pid_list):
                 out_path = save_dir / f"pred_batch_{pid_j}.pt"
@@ -275,7 +291,9 @@ class SegmentationMLPModule(L.LightningModule):
         confmat = self.test_confmat.compute()
 
         if self.trainer is not None and self.trainer.is_global_zero:
-            out_dir = Path(self.trainer.log_dir) if self.trainer.log_dir else Path("logs")
+            out_dir = (
+                Path(self.trainer.log_dir) if self.trainer.log_dir else Path("logs")
+            )
             out_dir.mkdir(parents=True, exist_ok=True)
             out_path = out_dir / "confmat_final.pt"
             torch.save(confmat.detach().cpu(), out_path)

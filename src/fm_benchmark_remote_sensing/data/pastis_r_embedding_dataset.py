@@ -8,7 +8,7 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
-from my_code.models.fm_base import FMBase
+from fm_benchmark_remote_sensing.models.fm_base import FMBase
 
 
 def read_patch_ids(metadata_geojson: Path) -> List[int]:
@@ -24,7 +24,6 @@ def read_patch_ids(metadata_geojson: Path) -> List[int]:
         if "ID_PATCH" not in props:
             raise RuntimeError(f"Pas d'ID_PATCH dans {metadata_geojson}")
         pids.append(int(props["ID_PATCH"]))
-
 
     pids.sort()
     return pids
@@ -47,20 +46,23 @@ def load_mask_hw(path: Path) -> torch.Tensor:
     Format de target :
       - (3, H, W) avec :
           canal 0 : labels (0..19)
-          canal 1 : info auxiliaire 
+          canal 1 : info auxiliaire
           canal 2 : info auxiliaire
     """
     t = np.load(path)
     if t.ndim != 3 or t.shape[0] != 3:
-        raise ValueError(f"TARGET doit être de shape (3,H,W), reçu {t.shape} pour {path}")
+        raise ValueError(
+            f"TARGET doit être de shape (3,H,W), reçu {t.shape} pour {path}"
+        )
 
-    labels = t[0] 
+    labels = t[0]
 
-    if labels.min() < 0 or labels.max()>19 :
-        raise ValueError(f"Labels incorrects dans {path}: min={labels.min()}, mxn={labels.max()}")
+    if labels.min() < 0 or labels.max() > 19:
+        raise ValueError(
+            f"Labels incorrects dans {path}: min={labels.min()}, mxn={labels.max()}"
+        )
 
     return torch.from_numpy(labels.astype(np.int64, copy=False))
-
 
 
 class PastisEmbeddingDataset(Dataset):
@@ -68,8 +70,9 @@ class PastisEmbeddingDataset(Dataset):
     Un item =
         embeddings: (H,W,D) float32
       + masks:      (H,W)   int64
-      + pid:                int64 
+      + pid:                int64
     """
+
     def __init__(
         self,
         pastis_root: Path,
