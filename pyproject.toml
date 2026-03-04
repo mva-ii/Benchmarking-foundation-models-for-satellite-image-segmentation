@@ -35,6 +35,9 @@ dev = [
     "scipy-stubs>=1.17.1.0",
 ]
 
+[tools.mypy]
+mypy_path = './src'
+
 [tool.uv]
 package = true
 
