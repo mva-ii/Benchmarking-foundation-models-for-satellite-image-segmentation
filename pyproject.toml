@@ -4,4 +4,50 @@ version = "0.1.0"
 description = ""
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "lightning[pytorch-extra]>=2.6.1",
+    "matplotlib>=3.10.8",
+    "numpy>=2.4.2",
+    "omegaconf>=2.3.0",
+    "pandas>=3.0.1",
+    "pyyaml>=6.0.3",
+    "scienceplots>=2.2.1",
+    "tensorboard>=2.20.0",
+    "torch>=2.10.0",
+    "wandb>=0.25.0",
+]
+authors = [
+    { name = "Simon Sassi", email = "12765875+maxerbox@users.noreply.github.com" }
+]
+
+[project.urls]
+Homepage = "https://github.com/mva-ii/Benchmarking-foundation-models-for-satellite-image-segmentation"
+Source = "https://github.com/mva-ii/Benchmarking-foundation-models-for-satellite-image-segmentation"
+
+[dependency-groups]
+dev = [
+    "ipykernel>=7.2.0",
+    "ipywidgets>=8.1.8",
+    "microsoft-python-type-stubs",
+    "nb-clean>=4.0.1",
+    "pre-commit>=4.5.1",
+    "ruff>=0.15.4",
+    "scipy-stubs>=1.17.1.0",
+]
+
+[tool.uv]
+package = true
+
+[tool.uv.sources]
+torch = [
+  { index = "pytorch-cu128", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+]
+torchvision = [
+  { index = "pytorch-cu128", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+]
+microsoft-python-type-stubs = { git = "https://github.com/microsoft/python-type-stubs.git" }
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
