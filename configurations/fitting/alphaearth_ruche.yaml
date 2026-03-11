@@ -3,8 +3,8 @@ seed_everything: 42
 trainer:
   accelerator: gpu
   strategy: ddp
-  devices: 1
-  num_nodes: 4
+  devices: 4
+  num_nodes: 1
   precision: null
   logger:
     class_path: lightning.pytorch.loggers.WandbLogger

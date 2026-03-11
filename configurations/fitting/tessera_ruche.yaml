@@ -4,7 +4,7 @@ trainer:
   accelerator: gpu
   strategy: ddp
   devices: 4
-  num_nodes: 4
+  num_nodes: 1
   precision: null
   logger:
     class_path: lightning.pytorch.loggers.WandbLogger
