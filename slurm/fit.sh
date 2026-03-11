@@ -5,7 +5,7 @@
 #SBATCH --partition=gpu_test
 #SBATCH --nodes=4             # This needs to match Trainer(num_nodes=...)
 #SBATCH --gres=gpu:4
-#SBATCH --cpus-per-task=10
+#SBATCH --cpus-per-task=2
 #SBATCH --ntasks-per-node=4   # This needs to match Trainer(devices=...)
 #SBATCH --mem=128G
 #SBATCH --time=00:10:00
