@@ -5,10 +5,10 @@
 #SBATCH --partition=gpu_test
 #SBATCH --nodes=1             # This needs to match Trainer(num_nodes=...)
 #SBATCH --gres=gpu:4
-#SBATCH --cpus-per-task=1
+#SBATCH --cpus-per-task=10
 #SBATCH --ntasks-per-node=4   # This needs to match Trainer(devices=...)
 #SBATCH --mem=128G
-#SBATCH --time=00:10:00
+#SBATCH --time=01:00:00
 #SBATCH --error=%j.out
 #SBATCH --output=%j.out
 
