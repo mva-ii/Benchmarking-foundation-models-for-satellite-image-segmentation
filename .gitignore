@@ -218,4 +218,4 @@ __marimo__/
 # Données lourdes
 PASTIS-R/
 pastis_embedding/
-data/
+/data

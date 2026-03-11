@@ -33,13 +33,11 @@ class SegmentationMLPModule(L.LightningModule):
     def __init__(
         self,
         head_cfg: MLPHeadConfig,
-        lr: float,
         ignore_index: int,
         ignore_labels: Tuple[int, int] = (0, 19),
     ) -> None:
         super().__init__()
         self.head = PixelMLPHead(head_cfg)
-        self.lr = float(lr)
 
         # Valeur unique d'ignore pour la loss/metrics (doit être hors [0..num_classes-1])
         self.ignore_index = int(ignore_index)
@@ -306,6 +304,3 @@ class SegmentationMLPModule(L.LightningModule):
             self.print(confmat)
 
         self.test_confmat.reset()
-
-    def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters(), lr=self.lr)
