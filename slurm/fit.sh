@@ -2,10 +2,12 @@
 # (submit.sh)
 
 # SLURM SUBMIT SCRIPT
+#SBATCH --partition=gpu_test
 #SBATCH --nodes=4             # This needs to match Trainer(num_nodes=...)
-#SBATCH --gres=gpu:8
-#SBATCH --ntasks-per-node=8   # This needs to match Trainer(devices=...)
-#SBATCH --mem=0
+#SBATCH --gres=gpu:4
+#SBATCH --cpus-per-task=10
+#SBATCH --ntasks-per-node=4   # This needs to match Trainer(devices=...)
+#SBATCH --mem=128G
 #SBATCH --time=00:10:00
 
 # debugging flags (optional)

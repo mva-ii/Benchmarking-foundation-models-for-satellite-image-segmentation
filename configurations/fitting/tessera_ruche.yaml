@@ -3,7 +3,7 @@ seed_everything: 42
 trainer:
   accelerator: gpu
   strategy: ddp
-  devices: 8
+  devices: 4
   num_nodes: 4
   precision: null
   logger:
