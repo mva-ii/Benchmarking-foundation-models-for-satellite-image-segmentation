@@ -24,10 +24,12 @@ export CUDA_LAUNCH_BLOCKING=1
 # might need the latest CUDA
 # module load NCCL/2.4.7-1-cuda.10.0
 
+echo "Activating environment from $ENVIRONMENT_ROOT"
+echo "Using config file $CONFIG_FILE"
+echo "PASTIS-R root: $PASTIS_R_ROOT"
+echo "Embedding root: $EMBEDDING_ROOT"
+
 source $ENVIRONMENT_ROOT/bin/activate
 
 # run script from above
-srun python scripts/runme.py \
--c $CONFIG_FILE \
---data.init_args.pastis_r_root=$PASTIS_R_ROOT \
---data.init_args.embedding_root=$EMBEDDING_ROOT
+srun python scripts/runme.py -c $CONFIG_FILE --data.init_args.pastis_r_root=$PASTIS_R_ROOT --data.init_args.embedding_root=$EMBEDDING_ROOT
