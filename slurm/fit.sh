@@ -9,6 +9,8 @@
 #SBATCH --ntasks-per-node=4   # This needs to match Trainer(devices=...)
 #SBATCH --mem=128G
 #SBATCH --time=00:10:00
+#SBATCH --error=%j.out
+#SBATCH --output=%j.out
 
 module purge
 
@@ -32,4 +34,4 @@ echo "Embedding root: $EMBEDDING_ROOT"
 source $ENVIRONMENT_ROOT/bin/activate
 
 # run script from above
-srun python scripts/runme.py fit -c $CONFIG_FILE --data.init_args.pastis_r_root=$PASTIS_R_ROOT --data.init_args.embedding_root=$EMBEDDING_ROOT
+srun python -u scripts/runme.py fit -c $CONFIG_FILE --data.init_args.pastis_r_root=$PASTIS_R_ROOT --data.init_args.embedding_root=$EMBEDDING_ROOT
