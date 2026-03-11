@@ -6,7 +6,7 @@
 #SBATCH --gres=gpu:8
 #SBATCH --ntasks-per-node=8   # This needs to match Trainer(devices=...)
 #SBATCH --mem=0
-#SBATCH --time=0-02:00:00
+#SBATCH --time=00:10:00
 
 # debugging flags (optional)
 export NCCL_DEBUG=INFO
