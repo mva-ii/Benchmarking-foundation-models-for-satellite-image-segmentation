@@ -1,8 +1,8 @@
 # lightning.pytorch==2.6.1
 seed_everything: 42
 trainer:
-  accelerator: gpu
-  strategy: ddp
+  accelerator: auto
+  strategy: auto
   devices: 4
   num_nodes: 1
   precision: null
@@ -32,7 +32,7 @@ trainer:
   limit_predict_batches: null
   overfit_batches: 0.0
   val_check_interval: null
-  check_val_every_n_epoch: null # validating is really slow so we do it less often
+  check_val_every_n_epoch: 1 # validating is really slow so we do it less often
   num_sanity_val_steps: null
   log_every_n_steps: 10
   enable_checkpointing: null
@@ -70,7 +70,7 @@ data:
     pastis_r_root: null
     embedding_type: alphaearth
     embedding_root: null
-    batch_size: 8
+    batch_size: 32
     num_workers: 4
     pin_memory: true
     val_fold: 4

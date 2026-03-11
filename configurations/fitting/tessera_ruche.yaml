@@ -1,8 +1,8 @@
 # lightning.pytorch==2.6.1
 seed_everything: 42
 trainer:
-  accelerator: gpu
-  strategy: ddp
+  accelerator: auto
+  strategy: auto
   devices: 4
   num_nodes: 1
   precision: null
@@ -70,7 +70,7 @@ data:
     pastis_r_root: null
     embedding_type: tessera
     embedding_root: null
-    batch_size: 8
+    batch_size: 32
     num_workers: 4
     pin_memory: true
     val_fold: 4
