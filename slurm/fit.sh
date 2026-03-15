@@ -18,10 +18,12 @@ module purge
 export NCCL_DEBUG=INFO
 export PYTHONFAULTHANDLER=1
 export CUDA_LAUNCH_BLOCKING=1
+export NCCL_ASYNC_ERROR_HANDLING=1
+export TORCH_DISTRIBUTED_DEBUG=DETAIL
+export NCCL_SOCKET_IFNAME=^docker0,lo
 
 # on your cluster you might need these:
 # set the network interface
-# export NCCL_SOCKET_IFNAME=^docker0,lo
 
 # might need the latest CUDA
 # module load NCCL/2.4.7-1-cuda.10.0

@@ -72,7 +72,7 @@ data:
     embedding_type: alphaearth
     embedding_root: data/preview-pertuis-pastis-r-embeddings/AE_EMBEDDING
     batch_size: 32
-    num_workers: 4
+    num_workers: 2
     pin_memory: true
     val_fold: 4
     test_fold: 5

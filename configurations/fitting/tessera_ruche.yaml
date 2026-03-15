@@ -72,7 +72,7 @@ data:
     embedding_type: tessera
     embedding_root: null
     batch_size: 32
-    num_workers: 4
+    num_workers: 10
     pin_memory: true
     val_fold: 4
     test_fold: 5
