@@ -219,3 +219,10 @@ __marimo__/
 PASTIS-R/
 pastis_embedding/
 /data
+
+/config.yaml
+/wandb
+/checkpoints
+/benchmark-fm-models-remote-sensing
+
+/.vscode

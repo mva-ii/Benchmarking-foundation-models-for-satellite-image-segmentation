@@ -12,6 +12,8 @@ trainer:
       project: benchmark-fm-models-remote-sensing
       name: alpha_earth_ruche_train_h512_h256_lr0.001
       log_model: all
+      checkpoint_name: ${trainer.logger.init_args.name}
+
   callbacks:
     - class_path: lightning.pytorch.callbacks.ModelCheckpoint
       init_args:
@@ -61,8 +63,8 @@ model:
       in_dim: 64 # dimension feature of one pixel
       hidden_dim_1: 512
       hidden_dim_2: 256
-      num_classes: 20
-    ignore_index: 0
+      num_classes: 18
+    remap_to_ignore_index: 18
 
 data:
   class_path: fm_benchmark_remote_sensing.data.EmbeddingDataModule
