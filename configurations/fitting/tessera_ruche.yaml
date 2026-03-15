@@ -17,7 +17,7 @@ trainer:
     - class_path: lightning.pytorch.callbacks.ModelCheckpoint
       init_args:
         filename: "best-{epoch:02d}-{val_mIoU:.4f}"
-        monitor: "val/mIoU"
+        monitor: "val/mIoU_epoch"
         mode: "max"
         save_top_k: 1
         save_last: true
