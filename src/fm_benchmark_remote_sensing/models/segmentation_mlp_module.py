@@ -1,18 +1,19 @@
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Tuple
+from typing import Any, Tuple, cast
 
 import lightning as L
+from pytorch_lightning.loggers import WandbLogger
 import torch
 from torch import nn
 from torchmetrics.classification import (
-    MulticlassConfusionMatrix,
     MulticlassF1Score,
     MulticlassJaccardIndex,
 )
 
+from fm_benchmark_remote_sensing.data import PASTIS_LABEL_NAMES
 from fm_benchmark_remote_sensing.models.mlp_head import MLPHeadConfig, PixelMLPHead
+import wandb
 
 
 class SegmentationMLPModule(L.LightningModule):
@@ -33,20 +34,52 @@ class SegmentationMLPModule(L.LightningModule):
     def __init__(
         self,
         head_cfg: MLPHeadConfig,
-        ignore_index: int,
+        remap_to_ignore_index: int,
         ignore_labels: Tuple[int, int] = (0, 19),
     ) -> None:
         super().__init__()
         self.head = PixelMLPHead(head_cfg)
 
         # Valeur unique d'ignore pour la loss/metrics (doit être hors [0..num_classes-1])
-        self.ignore_index = int(ignore_index)
+        self.ignore_index = int(remap_to_ignore_index)
 
         # Labels d'origine à ignorer (avant remapping)
         self.ignore_labels = tuple(int(x) for x in ignore_labels)
 
         # Nombre de classes "apprises" (après remapping)
         self.num_classes = int(head_cfg.num_classes)
+
+        if 0 <= self.ignore_index < self.num_classes:
+            raise ValueError(
+                f"ignore_index={self.ignore_index} must be outside [0..{self.num_classes - 1}] "
+                "(reserved for ignored pixels)."
+            )
+
+        # On retire les labels ignorés et on applique le même décalage que `_remap_targets`.
+        remapped: dict[int, str] = {}
+        for orig_lab, orig_name in PASTIS_LABEL_NAMES.items():
+            if int(orig_lab) in self.ignore_labels:
+                continue
+            new_lab = int(orig_lab) - 1
+            if 0 <= new_lab < self.num_classes:
+                remapped[new_lab] = str(orig_name)
+
+        missing = [i for i in range(self.num_classes) if i not in remapped]
+        if missing:
+            expected = len(PASTIS_LABEL_NAMES) - len(self.ignore_labels)
+            raise ValueError(
+                "REMAPPED_LABEL incomplete; missing remapped indices: "
+                + ", ".join(map(str, missing))
+                + f". This usually means head_cfg.num_classes={self.num_classes} doesn't match the "
+                + f"remapping scheme (expected {expected} learned classes for ignore_labels={self.ignore_labels})."
+            )
+
+        remapped[self.ignore_index] = "ignore"
+        self.REMAPPED_LABEL: dict[int, str] = remapped
+        # Noms des classes apprises (0..num_classes-1). Ne pas inclure "ignore" ici.
+        self.REMAPPED_CLASS_NAMES: list[str] = [
+            self.REMAPPED_LABEL[i] for i in range(self.num_classes)
+        ]
 
         # Loss : CrossEntropy attend logits(B,K,H,W) et target(B,H,W)
         self.criterion = nn.CrossEntropyLoss(ignore_index=self.ignore_index)
@@ -75,17 +108,16 @@ class SegmentationMLPModule(L.LightningModule):
             average="macro",
         )
 
-        # --- Test (confusion matrix) ---
-        self.test_confmat = MulticlassConfusionMatrix(
-            num_classes=self.num_classes,
-            ignore_index=self.ignore_index,
-        )
-
         # --- Sauvegarde de prédictions ---
         self._saved_pred_batches: list[dict[str, torch.Tensor]] = []
+        self.table_data: list[list[Any]] = []
         self.save_n_batches = (
             3  # nombre de batchs à sauvegarder (uniquement à la dernière époque)
         )
+
+        # --- Test accumulators (for W&B confusion matrix) ---
+        self.test_preds: list[torch.Tensor] = []
+        self.test_y_true: list[torch.Tensor] = []
 
     def forward(self, embeddings: torch.Tensor) -> torch.Tensor:
         return self.head(embeddings)  # (B,H,W,K)
@@ -126,18 +158,15 @@ class SegmentationMLPModule(L.LightningModule):
         emb = batch["embeddings"]
         mask_orig = batch["masks"]
 
-        # Remapping labels
         mask = self._remap_targets(mask_orig)
-
         logits = self(emb)
         loss = self._loss(logits, mask)
         self.log(
             "train/loss",
             loss,
-            on_step=False,
+            on_step=True,
             on_epoch=True,
             prog_bar=True,
-            sync_dist=True,
         )
 
         preds = torch.argmax(logits, dim=-1)
@@ -156,38 +185,16 @@ class SegmentationMLPModule(L.LightningModule):
         self.train_miou.reset()
         self.train_f1_macro.reset()
 
-    def validation_step(self, batch, batch_idx: int) -> torch.Tensor:
+    def validation_step(self, batch, batch_idx: int) -> dict[str, torch.Tensor]:
         emb = batch["embeddings"]
         mask_orig = batch["masks"]
-
         # Remapping labels
         mask = self._remap_targets(mask_orig)
-
         logits = self(emb)
-
         preds = torch.argmax(logits, dim=-1)
         self.val_miou.update(preds, mask)
         self.val_f1_macro.update(preds, mask)
-
         loss = self._loss(logits, mask)
-
-        # Sauvegarde uniquement à la dernière époque, sur quelques batchs
-        assert self.trainer.max_epochs is not None
-        if (
-            self.current_epoch == self.trainer.max_epochs - 1
-            and len(self._saved_pred_batches) < self.save_n_batches
-        ):
-            pid = batch["pid"]
-            self._saved_pred_batches.append(
-                {
-                    "pid": pid.detach().cpu() if isinstance(pid, torch.Tensor) else pid,
-                    "embeddings": emb.detach().cpu(),
-                    # Sauvegarde des deux versions pour debug : originale + remappée
-                    "targets_orig": mask_orig.detach().cpu(),
-                    "targets": mask.detach().cpu(),
-                    "logits": logits.detach().cpu(),
-                }
-            )
 
         self.log(
             "val/loss",
@@ -197,12 +204,58 @@ class SegmentationMLPModule(L.LightningModule):
             prog_bar=True,
             sync_dist=True,
         )
-        return loss
+        return {
+            "loss": loss,
+            "pid": batch["pid"],
+            "embeddings": emb,
+            "targets": mask,
+            "preds": preds,
+            "logits": logits,
+        }
+
+    def on_validation_start(self) -> None:
+        self.table_data.clear()
+
+    def on_validation_batch_end(
+        self, outputs, batch, batch_idx: int, dataloader_idx: int = 0
+    ) -> None:
+        assert self.trainer.max_epochs is not None
+        if self.current_epoch != self.trainer.max_epochs - 1:
+            return
+        if not isinstance(outputs, dict):
+            return
+        for i in range(batch["pid"].shape[0]):
+            black_image = torch.zeros(
+                (3, outputs["targets"].shape[1], outputs["targets"].shape[2]),
+                dtype=torch.uint8,
+            )
+            mask_img = wandb.Image(
+                black_image,
+                masks={
+                    "predictions": {
+                        "mask_data": outputs["preds"][i].detach().cpu(),
+                        "class_labels": self.REMAPPED_LABEL,
+                    },
+                    "ground_truth": {
+                        "mask_data": outputs["targets"][i].detach().cpu(),
+                        "class_labels": self.REMAPPED_LABEL,
+                    },
+                },
+            )
+            self.table_data.append(
+                [
+                    outputs["pid"][i].item(),
+                    mask_img,
+                    outputs["preds"][i].cpu().numpy(),
+                    outputs["targets"][i].cpu().numpy(),
+                    outputs["logits"][i].cpu().numpy(),
+                    outputs["embeddings"][i].cpu().numpy(),
+                ]
+            )
 
     def on_validation_epoch_end(self) -> None:
         miou = self.val_miou.compute()
         f1 = self.val_f1_macro.compute()
-
         self.log("val/mIoU", miou, prog_bar=True, sync_dist=True)
         self.log("val/F1_macro", f1, prog_bar=True, sync_dist=True)
 
@@ -212,84 +265,53 @@ class SegmentationMLPModule(L.LightningModule):
 
         self.val_miou.reset()
         self.val_f1_macro.reset()
-
-        # On ne sauvegarde qu'à la dernière époque
         assert self.trainer.max_epochs is not None
-        if self.current_epoch != self.trainer.max_epochs - 1:
-            return
-        if not self._saved_pred_batches:
-            return
-        assert self.trainer.logger is not None
-        assert self.trainer.logger.log_dir is not None
-        save_dir = Path(self.trainer.logger.log_dir) / "saved_predictions"
-        save_dir.mkdir(parents=True, exist_ok=True)
 
-        for data in self._saved_pred_batches:
-            pid = data["pid"]
+        if self.current_epoch == self.trainer.max_epochs - 1:
+            logger = cast(WandbLogger, self.logger)
+            logger.log_table(
+                "val_predictions_final_epoch",
+                columns=[
+                    "patch_id",
+                    "comparison_image",
+                    "prediction_mask",
+                    "ground_truth_mask",
+                    "logits",
+                    "embedding",
+                ],
+                data=self.table_data,
+            )
 
-            # Normalisation: construire une liste de pid (1 ou B éléments)
-            if isinstance(pid, int):
-                pid_list = [pid]
-            elif isinstance(pid, torch.Tensor):
-                pid = pid.detach().cpu()
-                if pid.ndim == 0:
-                    pid_list = [int(pid.item())]
-                else:
-                    pid_list = [int(x) for x in pid.flatten().tolist()]
-            else:
-                pid_list = [int(pid)]
-
-            # Cas 1: un seul pid pour tout le batch -> sauvegarde telle quelle
-            if len(pid_list) == 1:
-                out_path = save_dir / f"pred_batch_{pid_list[0]}.pt"
-                torch.save(data, out_path)
-                continue
-
-            # Cas 2: un pid par élément du batch -> 1 fichier par pid
-            emb = data["embeddings"]  # (B,H,W,D) ou équivalent
-            tgt_orig = data["targets_orig"]  # (B,H,W)
-            tgt = data["targets"]  # (B,H,W) remappé
-            log = data["logits"]  # (B,H,W,K)
-
-            for j, pid_j in enumerate(pid_list):
-                out_path = save_dir / f"pred_batch_{pid_j}.pt"
-                torch.save(
-                    {
-                        "pid": torch.tensor(pid_j),
-                        "embeddings": emb[j].clone(),
-                        "targets_orig": tgt_orig[j].clone(),
-                        "targets": tgt[j].clone(),
-                        "logits": log[j].clone(),
-                    },
-                    out_path,
-                )
-
-        self._saved_pred_batches.clear()
+    def on_test_start(self) -> None:
+        self.test_preds.clear()
+        self.test_y_true.clear()
 
     def test_step(self, batch, batch_idx: int) -> None:
         emb = batch["embeddings"]
         mask_orig = batch["masks"]
 
-        # Remapping labels
         mask = self._remap_targets(mask_orig)
-
         logits = self(emb)
         preds = torch.argmax(logits, dim=-1)
-        self.test_confmat.update(preds, mask)
+        self.test_preds.append(preds.cpu())
+        self.test_y_true.append(mask.cpu())
 
     def on_test_epoch_end(self) -> None:
-        confmat = self.test_confmat.compute()
+        flat_preds: list[int] = []
+        flat_true: list[int] = []
+        for preds_bhw, true_bhw in zip(self.test_preds, self.test_y_true):
+            preds_flat = preds_bhw.reshape(-1)
+            true_flat = true_bhw.reshape(-1)
+            keep = true_flat != self.ignore_index
+            flat_preds.extend(preds_flat[keep].to(torch.int64).tolist())
+            flat_true.extend(true_flat[keep].to(torch.int64).tolist())
 
-        if self.trainer is not None and self.trainer.is_global_zero:
-            out_dir = (
-                Path(self.trainer.log_dir) if self.trainer.log_dir else Path("logs")
-            )
-            out_dir.mkdir(parents=True, exist_ok=True)
-            out_path = out_dir / "confmat_final.pt"
-            torch.save(confmat.detach().cpu(), out_path)
-
-            self.print("Confmat finale sauvegardée dans:", str(out_path))
-            self.print("La voici :")
-            self.print(confmat)
-
-        self.test_confmat.reset()
+        wandb.log(
+            {
+                "confmat_test": wandb.plot.confusion_matrix(
+                    preds=flat_preds,
+                    y_true=flat_true,
+                    class_names=self.REMAPPED_CLASS_NAMES,
+                )
+            }
+        )
