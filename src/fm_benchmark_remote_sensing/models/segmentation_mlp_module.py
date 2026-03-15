@@ -177,11 +177,25 @@ class SegmentationMLPModule(L.LightningModule):
         return loss
 
     def on_train_epoch_end(self) -> None:
-        miou = self.train_miou.compute()
-        f1 = self.train_f1_macro.compute()
-
-        self.log("train/mIoU_epoch", miou, prog_bar=True, sync_dist=True)
-        self.log("train/F1_macro_epoch", f1, prog_bar=True, sync_dist=True)
+        self.log(
+            "train/mIoU_epoch",
+            self.train_miou,
+            prog_bar=True,
+            sync_dist=True,
+        )
+        self.log(
+            "train/F1_macro_epoch",
+            self.train_f1_macro,
+            prog_bar=True,
+            sync_dist=True,
+        )
+        if self.trainer is not None and self.trainer.is_global_zero:
+            miou = self.trainer.callback_metrics.get("train/mIoU_epoch")
+            f1 = self.trainer.callback_metrics.get("train/F1_macro_epoch")
+            if miou is not None:
+                self.print("[TRAIN] mIoU =", float(miou))
+            if f1 is not None:
+                self.print("[TRAIN] F1_macro =", float(f1))
 
         self.train_miou.reset()
         self.train_f1_macro.reset()
@@ -221,7 +235,7 @@ class SegmentationMLPModule(L.LightningModule):
         self, outputs, batch, batch_idx: int, dataloader_idx: int = 0
     ) -> None:
         assert self.trainer.max_epochs is not None
-        if self.current_epoch != self.trainer.max_epochs - 1:
+        if not self.trainer.is_global_zero:
             return
         if not isinstance(outputs, dict):
             return
@@ -255,14 +269,27 @@ class SegmentationMLPModule(L.LightningModule):
             )
 
     def on_validation_epoch_end(self) -> None:
-        miou = self.val_miou.compute()
-        f1 = self.val_f1_macro.compute()
-        self.log("val/mIoU_epoch", miou, prog_bar=True, sync_dist=True)
-        self.log("val/F1_macro_epoch", f1, prog_bar=True, sync_dist=True)
+
+        self.log(
+            "val/mIoU_epoch",
+            self.val_miou,
+            prog_bar=True,
+            sync_dist=True,
+        )
+        self.log(
+            "val/F1_macro_epoch",
+            self.val_f1_macro,
+            prog_bar=True,
+            sync_dist=True,
+        )
 
         if self.trainer is not None and self.trainer.is_global_zero:
-            self.print("[VAL] mIoU =", float(miou))
-            self.print("[VAL] F1_macro =", float(f1))
+            miou = self.trainer.callback_metrics.get("val/mIoU_epoch")
+            f1 = self.trainer.callback_metrics.get("val/F1_macro_epoch")
+            if miou is not None:
+                self.print("[VAL] mIoU =", float(miou))
+            if f1 is not None:
+                self.print("[VAL] F1_macro =", float(f1))
 
         self.val_miou.reset()
         self.val_f1_macro.reset()
