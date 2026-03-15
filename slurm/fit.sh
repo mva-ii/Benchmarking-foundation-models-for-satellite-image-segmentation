@@ -21,6 +21,9 @@ export CUDA_LAUNCH_BLOCKING=1
 export NCCL_ASYNC_ERROR_HANDLING=1
 export TORCH_DISTRIBUTED_DEBUG=DETAIL
 export NCCL_SOCKET_IFNAME=^docker0,lo
+export WANDB_CACHE_DIR=$WORKDIR/wandb_cache
+export WANDB_DIR=$WORKDIR/wandb
+export WANDB_DATA_DIR=$WORKDIR/wandb_data
 
 # on your cluster you might need these:
 # set the network interface
