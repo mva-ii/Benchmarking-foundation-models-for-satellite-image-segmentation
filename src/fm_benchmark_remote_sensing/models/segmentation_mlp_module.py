@@ -167,6 +167,7 @@ class SegmentationMLPModule(L.LightningModule):
             on_step=True,
             on_epoch=True,
             prog_bar=True,
+            sync_dist=True,
         )
 
         preds = torch.argmax(logits, dim=-1)
@@ -179,8 +180,8 @@ class SegmentationMLPModule(L.LightningModule):
         miou = self.train_miou.compute()
         f1 = self.train_f1_macro.compute()
 
-        self.log("train/mIoU", miou, prog_bar=True, sync_dist=True)
-        self.log("train/F1_macro", f1, prog_bar=True, sync_dist=True)
+        self.log("train/mIoU_epoch", miou, prog_bar=True, sync_dist=True)
+        self.log("train/F1_macro_epoch", f1, prog_bar=True, sync_dist=True)
 
         self.train_miou.reset()
         self.train_f1_macro.reset()
@@ -199,7 +200,7 @@ class SegmentationMLPModule(L.LightningModule):
         self.log(
             "val/loss",
             loss,
-            on_step=False,
+            on_step=True,
             on_epoch=True,
             prog_bar=True,
             sync_dist=True,
@@ -256,8 +257,8 @@ class SegmentationMLPModule(L.LightningModule):
     def on_validation_epoch_end(self) -> None:
         miou = self.val_miou.compute()
         f1 = self.val_f1_macro.compute()
-        self.log("val/mIoU", miou, prog_bar=True, sync_dist=True)
-        self.log("val/F1_macro", f1, prog_bar=True, sync_dist=True)
+        self.log("val/mIoU_epoch", miou, prog_bar=True, sync_dist=True)
+        self.log("val/F1_macro_epoch", f1, prog_bar=True, sync_dist=True)
 
         if self.trainer is not None and self.trainer.is_global_zero:
             self.print("[VAL] mIoU =", float(miou))
