@@ -156,17 +156,6 @@ class SegmentationMLPModule(L.LightningModule):
         self.train_miou.reset()
         self.train_f1_macro.reset()
 
-    def on_after_backward(self) -> None:
-        # Debug possible : vérifier que la head reçoit bien des gradients au tout début.
-        if self.global_step == 0:
-            has_grad = False
-            max_grad = 0.0
-            for p in self.head.parameters():
-                if p.grad is not None:
-                    has_grad = True
-                    max_grad = max(max_grad, float(p.grad.abs().max()))
-            # self.print(f"[DEBUG] head_has_grad={has_grad} head_max_abs_grad={max_grad}")
-
     def validation_step(self, batch, batch_idx: int) -> torch.Tensor:
         emb = batch["embeddings"]
         mask_orig = batch["masks"]
