@@ -110,6 +110,7 @@ class EmbeddingDataModule(L.LightningDataModule):
         val_fold: int,
         test_fold: int,
         subset_patch_ids: Optional[Sequence[int]] = None,
+        max_patches_per_fold: Optional[int] = None,
     ) -> None:
         super().__init__()
         self.pastis_root = Path(pastis_r_root)
@@ -120,6 +121,7 @@ class EmbeddingDataModule(L.LightningDataModule):
         self.val_fold = int(val_fold)
         self.test_fold = int(test_fold)
         self.subset_patch_ids = subset_patch_ids
+        self.max_patches_per_fold = max_patches_per_fold
 
         self.train_ds: Optional[PastisEmbeddingDataset] = None
         self.val_ds: Optional[PastisEmbeddingDataset] = None
@@ -136,6 +138,11 @@ class EmbeddingDataModule(L.LightningDataModule):
             train_pids = [pid for pid in train_pids if pid in wanted]
             val_pids = [pid for pid in val_pids if pid in wanted]
             test_pids = [pid for pid in test_pids if pid in wanted]
+
+        if self.max_patches_per_fold is not None:
+            train_pids = train_pids[: self.max_patches_per_fold]
+            val_pids = val_pids[: self.max_patches_per_fold]
+            test_pids = test_pids[: self.max_patches_per_fold]
 
         if stage in (None, "fit"):
             self.train_ds = PastisEmbeddingDataset(
