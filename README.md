@@ -54,3 +54,6 @@ Training on gpu_test:
    ```bash
    sbatch --export=ALL,ENVIRONMENT_ROOT=/gpfs/users/sassis/Benchmarking-foundation-models-for-satellite-image-segmentation/.venv,CONFIG_FILE=/gpfs/users/sassis/Benchmarking-foundation-models-for-satellite-image-segmentation/configurations/fitting/tessera_ruche.yaml,PASTIS_R_ROOT=/gpfs/workdir/sassis/data/PASTIS-R,EMBEDDING_ROOT=/gpfs/workdir/sassis/data/TESSERA_EMBEDDING slurm/fit.sh
    ```
+
+7. Test it by doing the same command, but with `slurm/test.sh` instead of
+   `slurm/fit.sh` and the testing config file instead of the fitting one.

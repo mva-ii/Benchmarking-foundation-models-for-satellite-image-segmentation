@@ -292,14 +292,6 @@ class SegmentationMLPModule(L.LightningModule):
             sync_dist=True,
         )
 
-        if self.trainer is not None and self.trainer.is_global_zero:
-            miou = self.trainer.callback_metrics.get(f"{stage}/mIoU_epoch")
-            f1 = self.trainer.callback_metrics.get(f"{stage}/F1_macro_epoch")
-            if miou is not None:
-                self.print(f"[{stage.upper()}] mIoU =", float(miou))
-            if f1 is not None:
-                self.print(f"[{stage.upper()}] F1_macro =", float(f1))
-
         self.miou.reset()
         self.f1_macro.reset()
         assert self.trainer.max_epochs is not None
