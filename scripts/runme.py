@@ -11,6 +11,7 @@ from lightning.pytorch.loggers import WandbLogger
 
 import fm_benchmark_remote_sensing.data  # pylint: disable=W0611 # noqa: F401 used by the CLI to find datamodules
 import fm_benchmark_remote_sensing.models  # pylint: disable=W0611 # noqa: F401 used by the CLI to find models
+import tempfile
 
 
 class CustomSaveConfigCallback(SaveConfigCallback):
@@ -65,6 +66,10 @@ class BenchmarkLightningCLI(LightningCLI):
 
 
 def cli_main():
+
+    # Print temp directory for debugging
+    print(f"Temporary directory: {tempfile.gettempdir()}")
+
     BenchmarkLightningCLI(
         save_config_callback=CustomSaveConfigCallback,
         save_config_kwargs={"overwrite": True},
