@@ -226,3 +226,4 @@ pastis_embedding/
 /benchmark-fm-models-remote-sensing
 
 /.vscode
+/artifacts

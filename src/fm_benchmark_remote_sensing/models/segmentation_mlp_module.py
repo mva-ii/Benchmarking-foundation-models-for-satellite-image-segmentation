@@ -97,12 +97,12 @@ class SegmentationMLPModule(L.LightningModule):
         )
 
         # --- Val metrics ---
-        self.val_miou = MulticlassJaccardIndex(
+        self.miou = MulticlassJaccardIndex(
             num_classes=self.num_classes,
             ignore_index=self.ignore_index,
             average="macro",
         )
-        self.val_f1_macro = MulticlassF1Score(
+        self.f1_macro = MulticlassF1Score(
             num_classes=self.num_classes,
             ignore_index=self.ignore_index,
             average="macro",
@@ -200,19 +200,21 @@ class SegmentationMLPModule(L.LightningModule):
         self.train_miou.reset()
         self.train_f1_macro.reset()
 
-    def validation_step(self, batch, batch_idx: int) -> dict[str, torch.Tensor]:
+    def shared_test_step(
+        self, batch, batch_idx: int, stage: str
+    ) -> dict[str, torch.Tensor]:
         emb = batch["embeddings"]
         mask_orig = batch["masks"]
         # Remapping labels
         mask = self._remap_targets(mask_orig)
         logits = self(emb)
         preds = torch.argmax(logits, dim=-1)
-        self.val_miou.update(preds, mask)
-        self.val_f1_macro.update(preds, mask)
+        self.miou.update(preds, mask)
+        self.f1_macro.update(preds, mask)
         loss = self._loss(logits, mask)
 
         self.log(
-            "val/loss",
+            f"{stage}/loss",
             loss,
             on_step=True,
             on_epoch=True,
@@ -228,10 +230,13 @@ class SegmentationMLPModule(L.LightningModule):
             "logits": logits,
         }
 
+    def validation_step(self, batch, batch_idx: int) -> dict[str, torch.Tensor]:
+        return self.shared_test_step(batch, batch_idx, stage="val")
+
     def on_validation_start(self) -> None:
         self.table_data.clear()
 
-    def on_validation_batch_end(
+    def shared_on_validation_batch_end(
         self, outputs, batch, batch_idx: int, dataloader_idx: int = 0
     ) -> None:
         assert self.trainer.max_epochs is not None
@@ -268,37 +273,41 @@ class SegmentationMLPModule(L.LightningModule):
                 ]
             )
 
-    def on_validation_epoch_end(self) -> None:
+    def on_validation_batch_end(
+        self, outputs, batch, batch_idx: int, dataloader_idx: int = 0
+    ) -> None:
+        self.shared_on_validation_batch_end(outputs, batch, batch_idx, dataloader_idx)
 
+    def shared_epoch_end(self, stage: str) -> None:
         self.log(
-            "val/mIoU_epoch",
-            self.val_miou,
+            f"{stage}/mIoU_epoch",
+            self.miou,
             prog_bar=True,
             sync_dist=True,
         )
         self.log(
-            "val/F1_macro_epoch",
-            self.val_f1_macro,
+            f"{stage}/F1_macro_epoch",
+            self.f1_macro,
             prog_bar=True,
             sync_dist=True,
         )
 
         if self.trainer is not None and self.trainer.is_global_zero:
-            miou = self.trainer.callback_metrics.get("val/mIoU_epoch")
-            f1 = self.trainer.callback_metrics.get("val/F1_macro_epoch")
+            miou = self.trainer.callback_metrics.get(f"{stage}/mIoU_epoch")
+            f1 = self.trainer.callback_metrics.get(f"{stage}/F1_macro_epoch")
             if miou is not None:
-                self.print("[VAL] mIoU =", float(miou))
+                self.print(f"[{stage.upper()}] mIoU =", float(miou))
             if f1 is not None:
-                self.print("[VAL] F1_macro =", float(f1))
+                self.print(f"[{stage.upper()}] F1_macro =", float(f1))
 
-        self.val_miou.reset()
-        self.val_f1_macro.reset()
+        self.miou.reset()
+        self.f1_macro.reset()
         assert self.trainer.max_epochs is not None
 
         if self.current_epoch == self.trainer.max_epochs - 1:
             logger = cast(WandbLogger, self.logger)
             logger.log_table(
-                "val_predictions_final_epoch",
+                f"{stage}_predictions_final_epoch",
                 columns=[
                     "patch_id",
                     "comparison_image",
@@ -310,21 +319,27 @@ class SegmentationMLPModule(L.LightningModule):
                 data=self.table_data,
             )
 
+    def on_validation_epoch_end(self) -> None:
+        self.shared_epoch_end(stage="val")
+
     def on_test_start(self) -> None:
         self.test_preds.clear()
         self.test_y_true.clear()
+        self.table_data.clear()
 
-    def test_step(self, batch, batch_idx: int) -> None:
-        emb = batch["embeddings"]
-        mask_orig = batch["masks"]
+    def test_step(self, batch, batch_idx: int) -> dict[str, torch.Tensor]:
+        outputs = self.shared_test_step(batch, batch_idx, stage="test")
+        self.test_preds.append(outputs["preds"])
+        self.test_y_true.append(outputs["targets"])
+        return outputs
 
-        mask = self._remap_targets(mask_orig)
-        logits = self(emb)
-        preds = torch.argmax(logits, dim=-1)
-        self.test_preds.append(preds.cpu())
-        self.test_y_true.append(mask.cpu())
+    def on_test_batch_end(
+        self, outputs, batch, batch_idx: int, dataloader_idx: int = 0
+    ) -> None:
+        self.shared_on_validation_batch_end(outputs, batch, batch_idx, dataloader_idx)
 
     def on_test_epoch_end(self) -> None:
+        self.shared_epoch_end(stage="test")
         flat_preds: list[int] = []
         flat_true: list[int] = []
         for preds_bhw, true_bhw in zip(self.test_preds, self.test_y_true):
