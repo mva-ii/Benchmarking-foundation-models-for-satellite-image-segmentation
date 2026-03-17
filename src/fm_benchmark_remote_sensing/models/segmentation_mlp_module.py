@@ -284,6 +284,9 @@ class SegmentationMLPModule(L.LightningModule):
     def shared_epoch_end(self, stage: str) -> None:
         assert self.trainer.max_epochs is not None
 
+        if not self.trainer.is_global_zero:
+            return
+
         if stage == "test" or self.current_epoch == self.trainer.max_epochs - 1:
             logger = cast(WandbLogger, self.logger)
             logger.log_table(
@@ -319,22 +322,25 @@ class SegmentationMLPModule(L.LightningModule):
         self.shared_on_batch_end(outputs, batch, batch_idx, dataloader_idx)
 
     def on_test_epoch_end(self) -> None:
+        if not self.trainer.is_global_zero:
+            return
+
         self.shared_epoch_end(stage="test")
         flat_preds: list[int] = []
         flat_true: list[int] = []
+
         for preds_bhw, true_bhw in zip(self.test_preds, self.test_y_true):
             preds_flat = preds_bhw.reshape(-1)
             true_flat = true_bhw.reshape(-1)
             keep = true_flat != self.ignore_index
             flat_preds.extend(preds_flat[keep].cpu().tolist())
             flat_true.extend(true_flat[keep].cpu().tolist())
-
-        wandb.log(
-            {
-                "confmat_test": wandb.plot.confusion_matrix(
-                    preds=flat_preds,
-                    y_true=flat_true,
-                    class_names=self.REMAPPED_CLASS_NAMES,
-                )
-            }
-        )
+            wandb.log(
+                {
+                    "confmat_test": wandb.plot.confusion_matrix(
+                        preds=flat_preds,
+                        y_true=flat_true,
+                        class_names=self.REMAPPED_CLASS_NAMES,
+                    )
+                }
+            )
