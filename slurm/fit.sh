@@ -46,4 +46,4 @@ echo "Embedding root: $EMBEDDING_ROOT"
 source $ENVIRONMENT_ROOT/bin/activate
 
 # run script from above
-srun python -u scripts/runme.py fit -c $CONFIG_FILE --data.init_args.pastis_r_root=$PASTIS_R_ROOT --data.init_args.embedding_root=$EMBEDDING_ROOT
+srun python scripts/runme.py fit -c $CONFIG_FILE --data.init_args.pastis_r_root=$PASTIS_R_ROOT --data.init_args.embedding_root=$EMBEDDING_ROOT

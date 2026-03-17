@@ -228,3 +228,4 @@ pastis_embedding/
 /.vscode
 /artifacts
 /notebooks/media
+/notebooks/artifacts
