@@ -184,7 +184,7 @@ class EmbeddingDataModule(L.LightningDataModule):
             num_workers=self.num_workers,
             pin_memory=self.pin_memory,
             collate_fn=collate_items,
-            persistent_workers=self.num_workers > 0,
+            persistent_workers=False,  # Disabled for large embeddings to prevent OOM
         )
 
     def test_dataloader(self) -> DataLoader:
