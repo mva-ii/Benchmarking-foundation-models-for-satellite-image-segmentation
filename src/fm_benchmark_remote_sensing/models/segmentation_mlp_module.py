@@ -214,6 +214,14 @@ class SegmentationMLPModule(L.LightningModule):
             prog_bar=True,
             sync_dist=True,
         )
+
+        # prevent memory leak
+        if self.save_n_batches is not None:
+            if self._saved_batch_count >= self.save_n_batches:
+                return {
+                    "loss": loss,
+                }
+
         return {
             "loss": loss,
             "pid": batch["pid"],
