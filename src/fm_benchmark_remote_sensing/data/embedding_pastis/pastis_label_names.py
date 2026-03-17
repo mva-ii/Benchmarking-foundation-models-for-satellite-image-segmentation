@@ -23,3 +23,6 @@ PASTIS_LABEL_NAMES = {
     18: "Sorghum",
     19: "Void label",
 }
+
+BKG_LABEL_INDEX = 0
+VOID_LABEL_INDEX = 19

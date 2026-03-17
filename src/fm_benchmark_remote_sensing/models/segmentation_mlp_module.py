@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Tuple, cast
+from typing import Any, cast, override
 
 import lightning as L
 from pytorch_lightning.loggers import WandbLogger
@@ -11,7 +11,11 @@ from torchmetrics.classification import (
     MulticlassJaccardIndex,
 )
 
-from fm_benchmark_remote_sensing.data import PASTIS_LABEL_NAMES
+from fm_benchmark_remote_sensing.data import (
+    PASTIS_LABEL_NAMES,
+    BKG_LABEL_INDEX,
+    VOID_LABEL_INDEX,
+)
 from fm_benchmark_remote_sensing.models.mlp_head import MLPHeadConfig, PixelMLPHead
 import wandb
 
@@ -24,10 +28,8 @@ class SegmentationMLPModule(L.LightningModule):
 
     Adaptation labels :
       - Labels d'origine attendus dans {0..19}
-      - Classes à ignorer : 0 et 19
-      - Remapping interne :
-          0,19 -> ignore_index
-          1..18 -> 0..17  (décalage -1)
+      - Classes ignorées (hardcodées) : 0 (Background) et 19 (Void label)
+      - Remapping interne : 1..18 -> 0..17 (décalage -1)
       => la head doit donc prédire num_classes=18
     """
 
@@ -35,16 +37,12 @@ class SegmentationMLPModule(L.LightningModule):
         self,
         head_cfg: MLPHeadConfig,
         remap_to_ignore_index: int,
-        ignore_labels: Tuple[int, int] = (0, 19),
     ) -> None:
         super().__init__()
         self.head = PixelMLPHead(head_cfg)
 
         # Valeur unique d'ignore pour la loss/metrics (doit être hors [0..num_classes-1])
         self.ignore_index = int(remap_to_ignore_index)
-
-        # Labels d'origine à ignorer (avant remapping)
-        self.ignore_labels = tuple(int(x) for x in ignore_labels)
 
         # Nombre de classes "apprises" (après remapping)
         self.num_classes = int(head_cfg.num_classes)
@@ -55,10 +53,10 @@ class SegmentationMLPModule(L.LightningModule):
                 "(reserved for ignored pixels)."
             )
 
-        # On retire les labels ignorés et on applique le même décalage que `_remap_targets`.
+        # Labels 0 et 19 ignorés, labels 1..18 décalés à 0..17.
         remapped: dict[int, str] = {}
         for orig_lab, orig_name in PASTIS_LABEL_NAMES.items():
-            if int(orig_lab) in self.ignore_labels:
+            if int(orig_lab) in (BKG_LABEL_INDEX, VOID_LABEL_INDEX):
                 continue
             new_lab = int(orig_lab) - 1
             if 0 <= new_lab < self.num_classes:
@@ -66,12 +64,11 @@ class SegmentationMLPModule(L.LightningModule):
 
         missing = [i for i in range(self.num_classes) if i not in remapped]
         if missing:
-            expected = len(PASTIS_LABEL_NAMES) - len(self.ignore_labels)
             raise ValueError(
                 "REMAPPED_LABEL incomplete; missing remapped indices: "
                 + ", ".join(map(str, missing))
                 + f". This usually means head_cfg.num_classes={self.num_classes} doesn't match the "
-                + f"remapping scheme (expected {expected} learned classes for ignore_labels={self.ignore_labels})."
+                + "remapping scheme (expected 18 learned classes for ignore_labels=(0, 19))."
             )
 
         remapped[self.ignore_index] = "ignore"
@@ -97,12 +94,12 @@ class SegmentationMLPModule(L.LightningModule):
         )
 
         # --- Val metrics ---
-        self.miou = MulticlassJaccardIndex(
+        self.val_test_miou = MulticlassJaccardIndex(
             num_classes=self.num_classes,
             ignore_index=self.ignore_index,
             average="macro",
         )
-        self.f1_macro = MulticlassF1Score(
+        self.val_test_f1_macro = MulticlassF1Score(
             num_classes=self.num_classes,
             ignore_index=self.ignore_index,
             average="macro",
@@ -128,25 +125,17 @@ class SegmentationMLPModule(L.LightningModule):
 
         Hypothèse : labels d'origine dans {0..19}.
         But :
-          - ignorer 0 et 19
-          - garder 1..18 mais les rendre contigus 0..17
+          - ignorer 0 (Background) et 19 (Void label) -> ignore_index
+          - 1..18 -> 0..17 (décalage -1)
 
-        Règles :
-          - mask == 0  -> ignore_index
-          - mask == 19 -> ignore_index
-          - 1..18      -> (mask - 1) dans 0..17
+        Le masque d'ignore est calculé sur le tenseur ORIGINAL pour éviter
+        toute collision (ex : label 18=Sorghum ne doit pas être confondu
+        avec ignore_index=18 avant le décalage).
         """
+        ignore_mask = (masks_bhw == BKG_LABEL_INDEX) | (masks_bhw == VOID_LABEL_INDEX)
         m = masks_bhw.clone()
-
-        # Marque d'abord les labels à ignorer
-        for lab in self.ignore_labels:
-            m[m == lab] = self.ignore_index
-
-        # Décalage pour rendre les classes contiguës.
-        # Important : ne décaler que les pixels non ignorés.
-        keep = m != self.ignore_index
-        m[keep] = m[keep] - 1
-
+        m[~ignore_mask] = m[~ignore_mask] - 1
+        m[ignore_mask] = self.ignore_index
         return m
 
     def _loss(self, logits_bhwk: torch.Tensor, masks_bhw: torch.Tensor) -> torch.Tensor:
@@ -154,7 +143,8 @@ class SegmentationMLPModule(L.LightningModule):
         logits_bkhw = logits_bhwk.permute(0, 3, 1, 2).contiguous()
         return self.criterion(logits_bkhw, masks_bhw)
 
-    def training_step(self, batch, batch_idx: int) -> torch.Tensor:
+    @override
+    def training_step(self, batch, _: int) -> torch.Tensor:
         emb = batch["embeddings"]
         mask_orig = batch["masks"]
 
@@ -171,52 +161,57 @@ class SegmentationMLPModule(L.LightningModule):
         )
 
         preds = torch.argmax(logits, dim=-1)
-        self.train_miou.update(preds, mask)
-        self.train_f1_macro.update(preds, mask)
-
-        return loss
-
-    def on_train_epoch_end(self) -> None:
+        self.train_miou(preds, mask)
+        self.train_f1_macro(preds, mask)
         self.log(
             "train/mIoU_epoch",
             self.train_miou,
+            on_step=False,
+            on_epoch=True,
             prog_bar=True,
             sync_dist=True,
         )
         self.log(
             "train/F1_macro_epoch",
             self.train_f1_macro,
+            on_step=False,
+            on_epoch=True,
             prog_bar=True,
             sync_dist=True,
         )
-        if self.trainer is not None and self.trainer.is_global_zero:
-            miou = self.trainer.callback_metrics.get("train/mIoU_epoch")
-            f1 = self.trainer.callback_metrics.get("train/F1_macro_epoch")
-            if miou is not None:
-                self.print("[TRAIN] mIoU =", float(miou))
-            if f1 is not None:
-                self.print("[TRAIN] F1_macro =", float(f1))
+        return loss
 
-        self.train_miou.reset()
-        self.train_f1_macro.reset()
-
-    def shared_test_step(
-        self, batch, batch_idx: int, stage: str
-    ) -> dict[str, torch.Tensor]:
+    def shared_test_step(self, batch, _: int, stage: str) -> dict[str, torch.Tensor]:
         emb = batch["embeddings"]
         mask_orig = batch["masks"]
         # Remapping labels
         mask = self._remap_targets(mask_orig)
         logits = self(emb)
         preds = torch.argmax(logits, dim=-1)
-        self.miou.update(preds, mask)
-        self.f1_macro.update(preds, mask)
+        self.val_test_miou(preds, mask)
+        self.val_test_f1_macro(preds, mask)
         loss = self._loss(logits, mask)
 
         self.log(
             f"{stage}/loss",
             loss,
             on_step=True,
+            on_epoch=True,
+            prog_bar=True,
+            sync_dist=True,
+        )
+        self.log(
+            f"{stage}/mIoU_epoch",
+            self.val_test_miou,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=True,
+            sync_dist=True,
+        )
+        self.log(
+            f"{stage}/F1_macro_epoch",
+            self.val_test_f1_macro,
+            on_step=False,
             on_epoch=True,
             prog_bar=True,
             sync_dist=True,
@@ -237,7 +232,7 @@ class SegmentationMLPModule(L.LightningModule):
         self.table_data.clear()
 
     def shared_on_validation_batch_end(
-        self, outputs, batch, batch_idx: int, dataloader_idx: int = 0
+        self, outputs, batch, _: int, __: int = 0
     ) -> None:
         assert self.trainer.max_epochs is not None
         if not self.trainer.is_global_zero:
@@ -279,21 +274,6 @@ class SegmentationMLPModule(L.LightningModule):
         self.shared_on_validation_batch_end(outputs, batch, batch_idx, dataloader_idx)
 
     def shared_epoch_end(self, stage: str) -> None:
-        self.log(
-            f"{stage}/mIoU_epoch",
-            self.miou,
-            prog_bar=True,
-            sync_dist=True,
-        )
-        self.log(
-            f"{stage}/F1_macro_epoch",
-            self.f1_macro,
-            prog_bar=True,
-            sync_dist=True,
-        )
-
-        self.miou.reset()
-        self.f1_macro.reset()
         assert self.trainer.max_epochs is not None
 
         if self.current_epoch == self.trainer.max_epochs - 1:
@@ -338,8 +318,8 @@ class SegmentationMLPModule(L.LightningModule):
             preds_flat = preds_bhw.reshape(-1)
             true_flat = true_bhw.reshape(-1)
             keep = true_flat != self.ignore_index
-            flat_preds.extend(preds_flat[keep].to(torch.int64).tolist())
-            flat_true.extend(true_flat[keep].to(torch.int64).tolist())
+            flat_preds.extend(preds_flat[keep].cpu().tolist())
+            flat_true.extend(true_flat[keep].cpu().tolist())
 
         wandb.log(
             {
