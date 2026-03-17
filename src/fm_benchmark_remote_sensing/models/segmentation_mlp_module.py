@@ -335,12 +335,14 @@ class SegmentationMLPModule(L.LightningModule):
             keep = true_flat != self.ignore_index
             flat_preds.extend(preds_flat[keep].cpu().tolist())
             flat_true.extend(true_flat[keep].cpu().tolist())
-            wandb.log(
-                {
-                    "confmat_test": wandb.plot.confusion_matrix(
-                        preds=flat_preds,
-                        y_true=flat_true,
-                        class_names=self.REMAPPED_CLASS_NAMES,
-                    )
-                }
-            )
+
+        # Log confusion matrix once after accumulating all predictions
+        wandb.log(
+            {
+                "confmat_test": wandb.plot.confusion_matrix(
+                    preds=flat_preds,
+                    y_true=flat_true,
+                    class_names=self.REMAPPED_CLASS_NAMES,
+                )
+            }
+        )
