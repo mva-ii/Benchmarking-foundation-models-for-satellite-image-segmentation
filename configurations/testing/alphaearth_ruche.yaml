@@ -14,7 +14,7 @@ trainer:
     class_path: lightning.pytorch.loggers.WandbLogger
     init_args:
       project: benchmark-fm-models-remote-sensing
-      name: test_alpha_earth_ruche_train_h512_h256_lr0.001
+      name: test_alpha_earth_ruche_h512_h256_lr0.001
       log_model: true
       checkpoint_name: ${trainer.logger.init_args.name}
 
