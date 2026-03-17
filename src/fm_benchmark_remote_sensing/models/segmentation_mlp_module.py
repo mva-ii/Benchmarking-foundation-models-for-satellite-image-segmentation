@@ -277,10 +277,10 @@ class SegmentationMLPModule(L.LightningModule):
                 [
                     outputs["pid"][i].item(),
                     mask_img,
-                    outputs["preds"][i].cpu().numpy(),
-                    outputs["targets"][i].cpu().numpy(),
-                    outputs["logits"][i].cpu().numpy(),
-                    outputs["embeddings"][i].cpu().numpy(),
+                    outputs["preds"][i].detach().cpu().numpy(),
+                    outputs["targets"][i].detach().cpu().numpy(),
+                    outputs["logits"][i].detach().cpu().numpy(),
+                    outputs["embeddings"][i].detach().cpu().numpy(),
                 ]
             )
 
@@ -320,8 +320,9 @@ class SegmentationMLPModule(L.LightningModule):
 
     def test_step(self, batch, batch_idx: int) -> dict[str, torch.Tensor]:
         outputs = self.shared_test_step(batch, batch_idx, stage="test")
-        self.test_preds.append(outputs["preds"])
-        self.test_y_true.append(outputs["targets"])
+        # Detach to prevent keeping computation graph in memory
+        self.test_preds.append(outputs["preds"].detach())
+        self.test_y_true.append(outputs["targets"].detach())
         return outputs
 
     def on_test_batch_end(
