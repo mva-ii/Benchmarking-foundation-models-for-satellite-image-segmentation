@@ -157,7 +157,7 @@ class SegmentationMLPModule(L.LightningModule):
             on_step=True,
             on_epoch=True,
             prog_bar=True,
-            sync_dist=True,
+            sync_dist=(self.trainer.world_size > 1),
         )
 
         preds = torch.argmax(logits, dim=-1)
@@ -169,7 +169,7 @@ class SegmentationMLPModule(L.LightningModule):
             on_step=False,
             on_epoch=True,
             prog_bar=True,
-            sync_dist=True,
+            sync_dist=(self.trainer.world_size > 1),
         )
         self.log(
             "train/F1_macro_epoch",
@@ -177,7 +177,7 @@ class SegmentationMLPModule(L.LightningModule):
             on_step=False,
             on_epoch=True,
             prog_bar=True,
-            sync_dist=True,
+            sync_dist=(self.trainer.world_size > 1),
         )
         return loss
 
@@ -198,7 +198,7 @@ class SegmentationMLPModule(L.LightningModule):
             on_step=True,
             on_epoch=True,
             prog_bar=True,
-            sync_dist=True,
+            sync_dist=(self.trainer.world_size > 1),
         )
         self.log(
             f"{stage}/mIoU_epoch",
@@ -206,7 +206,7 @@ class SegmentationMLPModule(L.LightningModule):
             on_step=False,
             on_epoch=True,
             prog_bar=True,
-            sync_dist=True,
+            sync_dist=(self.trainer.world_size > 1),
         )
         self.log(
             f"{stage}/F1_macro_epoch",
@@ -214,7 +214,7 @@ class SegmentationMLPModule(L.LightningModule):
             on_step=False,
             on_epoch=True,
             prog_bar=True,
-            sync_dist=True,
+            sync_dist=(self.trainer.world_size > 1),
         )
         return {
             "loss": loss,
