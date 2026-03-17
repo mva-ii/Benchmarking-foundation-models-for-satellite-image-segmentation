@@ -106,11 +106,11 @@ class SegmentationMLPModule(L.LightningModule):
         )
 
         # --- Sauvegarde de prédictions ---
-        self._saved_pred_batches: list[dict[str, torch.Tensor]] = []
         self.table_data: list[list[Any]] = []
         self.save_n_batches = (
             3  # nombre de batchs à sauvegarder (uniquement à la dernière époque)
         )
+        self._saved_batch_count = 0
 
         # --- Test accumulators (for W&B confusion matrix) ---
         self.test_preds: list[torch.Tensor] = []
@@ -240,6 +240,18 @@ class SegmentationMLPModule(L.LightningModule):
             return
         if not isinstance(outputs, dict):
             return
+        should_save = (
+            self.save_n_batches > 0
+            and (
+                self.trainer.state.stage == "test"
+                or self.current_epoch == self.trainer.max_epochs - 1
+            )
+            and self._saved_batch_count < self.save_n_batches
+        )
+        if not should_save:
+            return
+
+        self._saved_batch_count += 1
         for i in range(batch["pid"].shape[0]):
             black_image = torch.zeros(
                 (3, outputs["targets"].shape[1], outputs["targets"].shape[2]),
