@@ -3,7 +3,11 @@ seed_everything: 42
 trainer:
   accelerator: auto
   strategy: auto
-  devices: 4
+  devices: 1
+  # Using `DistributedSampler` with the dataloaders.
+  # During `trainer.test()`, it is recommended to use `Trainer(devices=1, num_nodes=1)` to ensure each sample/batch gets evaluated exactly once.
+  # Otherwise, multi-device settings use `DistributedSampler` that replicates some samples to make sure
+  # all devices have same batch size in case of uneven inputs.
   num_nodes: 1
   precision: null
   logger:

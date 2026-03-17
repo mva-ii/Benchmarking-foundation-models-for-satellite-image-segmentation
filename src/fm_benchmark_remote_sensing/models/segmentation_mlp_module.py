@@ -231,9 +231,7 @@ class SegmentationMLPModule(L.LightningModule):
     def on_validation_start(self) -> None:
         self.table_data.clear()
 
-    def shared_on_validation_batch_end(
-        self, outputs, batch, _: int, __: int = 0
-    ) -> None:
+    def shared_on_batch_end(self, outputs, batch, _: int, __: int = 0) -> None:
         assert self.trainer.max_epochs is not None
         if not self.trainer.is_global_zero:
             return
@@ -271,12 +269,12 @@ class SegmentationMLPModule(L.LightningModule):
     def on_validation_batch_end(
         self, outputs, batch, batch_idx: int, dataloader_idx: int = 0
     ) -> None:
-        self.shared_on_validation_batch_end(outputs, batch, batch_idx, dataloader_idx)
+        self.shared_on_batch_end(outputs, batch, batch_idx, dataloader_idx)
 
     def shared_epoch_end(self, stage: str) -> None:
         assert self.trainer.max_epochs is not None
 
-        if self.current_epoch == self.trainer.max_epochs - 1:
+        if stage == "test" or self.current_epoch == self.trainer.max_epochs - 1:
             logger = cast(WandbLogger, self.logger)
             logger.log_table(
                 f"{stage}_predictions_final_epoch",
@@ -308,7 +306,7 @@ class SegmentationMLPModule(L.LightningModule):
     def on_test_batch_end(
         self, outputs, batch, batch_idx: int, dataloader_idx: int = 0
     ) -> None:
-        self.shared_on_validation_batch_end(outputs, batch, batch_idx, dataloader_idx)
+        self.shared_on_batch_end(outputs, batch, batch_idx, dataloader_idx)
 
     def on_test_epoch_end(self) -> None:
         self.shared_epoch_end(stage="test")
