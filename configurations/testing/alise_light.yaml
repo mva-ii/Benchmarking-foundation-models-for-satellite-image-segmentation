@@ -10,9 +10,10 @@ trainer:
     class_path: lightning.pytorch.loggers.WandbLogger
     init_args:
       project: benchmark-fm-models-remote-sensing
-      name: debug_test_alpha_earth_ruche_h512_h256_lr0.001
+      name: test_preview_alise_h512_h256_lr0.001
       log_model: true
       checkpoint_name: ${trainer.logger.init_args.name}
+
   callbacks:
     - class_path: lightning.pytorch.callbacks.ModelCheckpoint
       init_args:
@@ -22,7 +23,7 @@ trainer:
         save_top_k: 1
         save_last: true
   fast_dev_run: false
-  max_epochs: 1
+  max_epochs: 200
   min_epochs: null
   max_steps: -1
   min_steps: null
@@ -38,7 +39,7 @@ trainer:
   log_every_n_steps: 1
   enable_checkpointing: null
   enable_progress_bar: true
-  enable_model_summary: true
+  enable_model_summary: null
   accumulate_grad_batches: 1
   gradient_clip_val: null
   gradient_clip_algorithm: null
@@ -47,7 +48,7 @@ trainer:
   inference_mode: true
   use_distributed_sampler: true
   profiler: null
-  detect_anomaly: true
+  detect_anomaly: false
   barebones: false
   plugins: null
   sync_batchnorm: false
@@ -59,7 +60,7 @@ model:
   class_path: fm_benchmark_remote_sensing.models.SegmentationMLPModule
   init_args:
     head_cfg:
-      in_dim: 64 # dimension feature of one pixel
+      in_dim: 640 # dimension feature of one pixel
       hidden_dim_1: 512
       hidden_dim_2: 256
       num_classes: 18
@@ -69,10 +70,10 @@ data:
   class_path: fm_benchmark_remote_sensing.data.EmbeddingDataModule
   init_args:
     pastis_r_root: data/preview-pertuis-pastis-r-embeddings/PASTIS_R
-    embedding_type: alphaearth
-    embedding_root: data/preview-pertuis-pastis-r-embeddings/AE_EMBEDDING
+    embedding_type: alise
+    embedding_root: data/preview-pertuis-pastis-r-embeddings/ALISE_EMB
     batch_size: 32
-    num_workers: 2
+    num_workers: 10
     pin_memory: true
     val_fold: 4
     test_fold: 5
@@ -83,6 +84,6 @@ optimizer:
     lr: 0.001
 lr_scheduler: null
 weights_only: null
-#download_path: data
-#dataset_artifact_reference: benchmark-fm-models-remote-sensing/dataset-pastis-r-embeddings:latest
-checkpoint_reference: maxerbox-org/benchmark-fm-models-remote-sensing/alpha_earth_ruche_train_h512_h256_lr0.001:best
+datataset_download_path: data
+dataset_artifact_reference: benchmark-fm-models-remote-sensing/preview-pertuis-pastis-r-embeddings:latest
+checkpoint_reference: maxerbox-org/benchmark-fm-models-remote-sensing/alise_ruche_train_h512_h256_lr0.001:best

@@ -52,7 +52,7 @@ class BenchmarkLightningCLI(LightningCLI):
         if self.config[cmd]["dataset_artifact_reference"] is not None:
             dataset_artifact = api.artifact(
                 self.config[cmd]["dataset_artifact_reference"],
-                type="raw_data",
+                type="dataset",
             )
             download_path: Path = self.config[cmd]["datataset_download_path"]
             if not os.path.exists(download_path):
