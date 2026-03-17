@@ -8,7 +8,6 @@
 #SBATCH --cpus-per-task=10
 #SBATCH --ntasks-per-node=4   # This needs to match Trainer(devices=...)
 #SBATCH --mem=128G
-#SBATCH --mem-per-cpu=10G
 #SBATCH --time=01:00:00
 #SBATCH --error=%j.out
 #SBATCH --output=%j.out
