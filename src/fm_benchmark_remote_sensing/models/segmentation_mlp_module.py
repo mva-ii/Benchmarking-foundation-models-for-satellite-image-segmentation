@@ -37,6 +37,7 @@ class SegmentationMLPModule(L.LightningModule):
         self,
         head_cfg: MLPHeadConfig,
         remap_to_ignore_index: int,
+        save_n_batches: int | None = None,
     ) -> None:
         super().__init__()
         self.head = PixelMLPHead(head_cfg)
@@ -52,7 +53,7 @@ class SegmentationMLPModule(L.LightningModule):
                 f"ignore_index={self.ignore_index} must be outside [0..{self.num_classes - 1}] "
                 "(reserved for ignored pixels)."
             )
-
+        self.save_n_batches = save_n_batches
         # Labels 0 et 19 ignorés, labels 1..18 décalés à 0..17.
         remapped: dict[int, str] = {}
         for orig_lab, orig_name in PASTIS_LABEL_NAMES.items():
@@ -107,9 +108,6 @@ class SegmentationMLPModule(L.LightningModule):
 
         # --- Sauvegarde de prédictions ---
         self.table_data: list[list[Any]] = []
-        self.save_n_batches = (
-            3  # nombre de batchs à sauvegarder (uniquement à la dernière époque)
-        )
         self._saved_batch_count = 0
 
         # --- Test accumulators (for W&B confusion matrix) ---
@@ -233,22 +231,19 @@ class SegmentationMLPModule(L.LightningModule):
 
     def shared_on_batch_end(self, outputs, batch, _: int, __: int = 0) -> None:
         assert self.trainer.max_epochs is not None
-        if (
-            not self.trainer.is_global_zero
-            and self._accelerator_connector.is_distributed
-        ):
+        if not self.trainer.is_global_zero:
             return
         if not isinstance(outputs, dict):
             return
-        should_save = (
-            self.save_n_batches > 0
-            and (
-                self.trainer.state.stage == "test"
-                or self.current_epoch == self.trainer.max_epochs - 1
-            )
-            and self._saved_batch_count < self.save_n_batches
-        )
-        if not should_save:
+        if not (
+            self.trainer.state.stage == "test"
+            or self.current_epoch == self.trainer.max_epochs - 1
+        ):
+            return
+        if (
+            self.save_n_batches is not None
+            and self._saved_batch_count >= self.save_n_batches
+        ):
             return
 
         self._saved_batch_count += 1

@@ -65,6 +65,7 @@ model:
       hidden_dim_2: 256
       num_classes: 18
     remap_to_ignore_index: 18
+    save_n_batches: 3 # alise embedding are huge
 
 data:
   class_path: fm_benchmark_remote_sensing.data.EmbeddingDataModule
