@@ -157,7 +157,7 @@ class SegmentationMLPModule(L.LightningModule):
             on_step=True,
             on_epoch=True,
             prog_bar=True,
-            sync_dist=(self.trainer.world_size > 1),
+            sync_dist=True,
         )
 
         preds = torch.argmax(logits, dim=-1)
@@ -169,7 +169,7 @@ class SegmentationMLPModule(L.LightningModule):
             on_step=False,
             on_epoch=True,
             prog_bar=True,
-            sync_dist=(self.trainer.world_size > 1),
+            sync_dist=True,
         )
         self.log(
             "train/F1_macro_epoch",
@@ -177,7 +177,7 @@ class SegmentationMLPModule(L.LightningModule):
             on_step=False,
             on_epoch=True,
             prog_bar=True,
-            sync_dist=(self.trainer.world_size > 1),
+            sync_dist=True,
         )
         return loss
 
@@ -198,7 +198,7 @@ class SegmentationMLPModule(L.LightningModule):
             on_step=True,
             on_epoch=True,
             prog_bar=True,
-            sync_dist=(self.trainer.world_size > 1),
+            sync_dist=True,
         )
         self.log(
             f"{stage}/mIoU_epoch",
@@ -206,7 +206,7 @@ class SegmentationMLPModule(L.LightningModule):
             on_step=False,
             on_epoch=True,
             prog_bar=True,
-            sync_dist=(self.trainer.world_size > 1),
+            sync_dist=True,
         )
         self.log(
             f"{stage}/F1_macro_epoch",
@@ -214,7 +214,7 @@ class SegmentationMLPModule(L.LightningModule):
             on_step=False,
             on_epoch=True,
             prog_bar=True,
-            sync_dist=(self.trainer.world_size > 1),
+            sync_dist=True,
         )
         return {
             "loss": loss,
@@ -233,7 +233,10 @@ class SegmentationMLPModule(L.LightningModule):
 
     def shared_on_batch_end(self, outputs, batch, _: int, __: int = 0) -> None:
         assert self.trainer.max_epochs is not None
-        if not self.trainer.is_global_zero:
+        if (
+            not self.trainer.is_global_zero
+            and self._accelerator_connector.is_distributed
+        ):
             return
         if not isinstance(outputs, dict):
             return
