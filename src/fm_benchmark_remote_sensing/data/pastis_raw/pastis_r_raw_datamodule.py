@@ -147,18 +147,45 @@ class PastisRawDataModule(L.LightningDataModule):
             and self.scarce_fold_idx is not None
             and self.scarce_nb_patches is not None
         ):
-            # Load patch IDs from CSV files (similar to ALISE pattern)
-            train_csv_file = (
-                self.scarce_csv_root
-                / f"selected_patches_fold_{self.test_fold}_nb_{self.scarce_nb_patches}_seed_{self.scarce_fold_idx}.csv"
+            # Scarce mode: use N patches per *training fold* (i.e. folds != val_fold and != test_fold)
+            all_folds = sorted(set(pid_to_fold.values()))
+            train_folds = [
+                f for f in all_folds if f not in (self.val_fold, self.test_fold)
+            ]
+            if not train_folds:
+                raise RuntimeError(
+                    f"No training folds left with val_fold={self.val_fold} and test_fold={self.test_fold}."
+                )
+
+            train_pids: List[int] = []
+            for fold in train_folds:
+                train_csv_file = (
+                    self.scarce_csv_root
+                    / f"selected_patches_fold_{fold}_nb_{self.scarce_nb_patches}_seed_{self.scarce_fold_idx}.csv"
+                )
+                train_pids.extend(read_patch_ids_from_csv(train_csv_file))
+
+            # Keep only pids that belong to the expected folds (defensive) and deduplicate.
+            train_pids = sorted(
+                {
+                    pid
+                    for pid in train_pids
+                    if int(pid_to_fold.get(int(pid), -1)) in set(train_folds)
+                }
             )
+
             val_csv_file = (
                 self.scarce_csv_root
                 / f"selected_patches_fold_{self.val_fold}_nb_{self.scarce_nb_patches}_seed_{self.scarce_fold_idx}.csv"
             )
-
-            train_pids = read_patch_ids_from_csv(train_csv_file)
             val_pids = read_patch_ids_from_csv(val_csv_file)
+            val_pids = sorted(
+                {
+                    pid
+                    for pid in val_pids
+                    if int(pid_to_fold.get(int(pid), -1)) == self.val_fold
+                }
+            )
 
             # For test, use all patches from test fold
             test_pids = [
