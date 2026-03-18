@@ -233,6 +233,16 @@ class SegmentationMLPModule(L.LightningModule):
             prog_bar=True,
             sync_dist=True,
         )
+        for i in range(self.num_classes):
+            self.log(
+                f"{stage}/F1_{self.REMAPPED_CLASS_NAMES[i]}_epoch",
+                self.val_test_f1_per_class[i],
+                on_step=False,
+                on_epoch=True,
+                prog_bar=False,
+                sync_dist=True,
+            )
+
         self.log(
             f"{stage}/F1_macro_epoch",
             self.val_test_f1_macro,
@@ -340,16 +350,6 @@ class SegmentationMLPModule(L.LightningModule):
 
     def on_validation_epoch_end(self) -> None:
         self.shared_epoch_end(stage="val")
-        # Log per-class F1 scores
-        if self.trainer.is_global_zero:
-            f1_per_class = self.val_test_f1_per_class.compute()
-            if f1_per_class is not None:
-                # Log as a dictionary with class names
-                f1_dict = {
-                    f"val/F1_{self.REMAPPED_CLASS_NAMES[i]}": f1_per_class[i].item()
-                    for i in range(min(len(f1_per_class), self.num_classes))
-                }
-                self.log_dict(f1_dict, sync_dist=False)
 
     def on_test_start(self) -> None:
         self.test_preds.clear()
@@ -372,16 +372,6 @@ class SegmentationMLPModule(L.LightningModule):
             return
 
         self.shared_epoch_end(stage="test")
-
-        # Log per-class F1 scores
-        f1_per_class = self.val_test_f1_per_class.compute()
-        if f1_per_class is not None:
-            # Log as a dictionary with class names
-            f1_dict = {
-                f"test/F1_{self.REMAPPED_CLASS_NAMES[i]}": f1_per_class[i].item()
-                for i in range(min(len(f1_per_class), self.num_classes))
-            }
-            self.log_dict(f1_dict, sync_dist=False)
 
         flat_preds: list[int] = []
         flat_true: list[int] = []
