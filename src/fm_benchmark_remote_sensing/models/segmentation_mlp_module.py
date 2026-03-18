@@ -121,6 +121,8 @@ class SegmentationMLPModule(L.LightningModule):
             ignore_index=self.ignore_index,
             average="none",
             sync_on_compute=False,
+            compute_on_cpu=False,
+            dist_sync_on_step=True,
         )
 
         # --- Sauvegarde de prédictions ---
