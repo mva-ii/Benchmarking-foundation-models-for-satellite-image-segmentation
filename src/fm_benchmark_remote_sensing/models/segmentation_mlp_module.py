@@ -120,6 +120,7 @@ class SegmentationMLPModule(L.LightningModule):
             num_classes=self.num_classes,
             ignore_index=self.ignore_index,
             average="none",
+            sync_on_compute=False,
         )
 
         # --- Sauvegarde de prédictions ---
@@ -240,7 +241,7 @@ class SegmentationMLPModule(L.LightningModule):
                 on_step=False,
                 on_epoch=True,
                 prog_bar=False,
-                sync_dist=False,  # ! IMPORTANT
+                sync_dist=False,  # ! IMPORTANT https://github.com/Lightning-AI/pytorch-lightning/issues/18803
                 metric_attribute="val_test_f1_per_class",
             )
 
