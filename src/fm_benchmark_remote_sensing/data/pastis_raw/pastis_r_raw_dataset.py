@@ -130,8 +130,8 @@ class PastisRawDataset(Dataset):
 
         # Stack along channel dimension
         data = torch.cat(data_list, dim=1)  # (T, C_total, H, W)
-        dates = torch.from_numpy(dates_list).float()  # (T,)
-        masks = torch.from_numpy(target).long()  # (H, W)
+        dates = dates_list.float()  # (T,) - already a Tensor from PASTIS
+        masks = target.long()  # (H, W) - already a Tensor from PASTIS
 
         if target.ndim == 3:  # target is (C, H, W)
             masks = masks[0]  # Take first channel (semantic labels)
