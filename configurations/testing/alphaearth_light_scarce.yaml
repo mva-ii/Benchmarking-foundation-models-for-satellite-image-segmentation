@@ -1,0 +1,88 @@
+# lightning.pytorch==2.6.1
+seed_everything: 42
+trainer:
+  accelerator: auto
+  strategy: auto
+  devices: 1
+  num_nodes: 1
+  precision: null
+  logger:
+    class_path: lightning.pytorch.loggers.WandbLogger
+    init_args:
+      project: benchmark-fm-models-remote-sensing
+      name: test_preview_alpha_earth_scarce_h512_h256_lr0.001
+      log_model: true
+      checkpoint_name: ${trainer.logger.init_args.name}
+  callbacks:
+    - class_path: lightning.pytorch.callbacks.ModelCheckpoint
+      init_args:
+        filename: "best-{epoch:02d}-{val_mIoU:.4f}"
+        monitor: "val/mIoU_epoch"
+        mode: "max"
+        save_top_k: 1
+        save_last: true
+  fast_dev_run: false
+  max_epochs: 1
+  min_epochs: null
+  max_steps: -1
+  min_steps: null
+  max_time: null
+  limit_train_batches: null
+  limit_val_batches: null
+  limit_test_batches: null
+  limit_predict_batches: null
+  overfit_batches: 0.0
+  val_check_interval: null
+  check_val_every_n_epoch: 1 # validating is really slow so we do it less often
+  num_sanity_val_steps: null
+  log_every_n_steps: 1
+  enable_checkpointing: null
+  enable_progress_bar: true
+  enable_model_summary: true
+  accumulate_grad_batches: 1
+  gradient_clip_val: null
+  gradient_clip_algorithm: null
+  deterministic: null
+  benchmark: null
+  inference_mode: true
+  use_distributed_sampler: true
+  profiler: null
+  detect_anomaly: true
+  barebones: false
+  plugins: null
+  sync_batchnorm: false
+  reload_dataloaders_every_n_epochs: 0
+  default_root_dir: null
+  enable_autolog_hparams: true
+  model_registry: null
+model:
+  class_path: fm_benchmark_remote_sensing.models.SegmentationMLPModule
+  init_args:
+    head_cfg:
+      in_dim: 64 # dimension feature of one pixel
+      hidden_dim_1: 512
+      hidden_dim_2: 256
+      num_classes: 18
+    remap_to_ignore_index: 18
+
+data:
+  class_path: fm_benchmark_remote_sensing.data.EmbeddingDataModule
+  init_args:
+    pastis_r_root: data/preview-pertuis-pastis-r-embeddings/PASTIS_R
+    embedding_type: alphaearth
+    embedding_root: data/preview-pertuis-pastis-r-embeddings/AE_EMBEDDING
+    batch_size: 32
+    num_workers: 2
+    pin_memory: true
+    val_fold: 4
+    test_fold: 5
+
+optimizer:
+  class_path: torch.optim.Adam
+  init_args:
+    lr: 0.001
+lr_scheduler: null
+weights_only: null
+datataset_download_path: data
+dataset_artifact_reference: benchmark-fm-models-remote-sensing/preview-pertuis-pastis-r-embeddings:latest
+checkpoint_reference: maxerbox-org/benchmark-fm-models-remote-sensing/alpha_earth_ruche_train_scarce_h512_h256_lr0.001:best

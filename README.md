@@ -47,17 +47,49 @@ Training on gpu_test:
 
 6. Run the slurm script:
 
+   Alpha Earth embeddings:
+
    ```bash
    sbatch --export=ALL,ENVIRONMENT_ROOT=/gpfs/users/sassis/Benchmarking-foundation-models-for-satellite-image-segmentation/.venv,CONFIG_FILE=/gpfs/users/sassis/Benchmarking-foundation-models-for-satellite-image-segmentation/configurations/fitting/alphaearth_ruche.yaml,PASTIS_R_ROOT=/gpfs/workdir/sassis/data/PASTIS-R,EMBEDDING_ROOT=/gpfs/workdir/sassis/data/AE_EMBEDDING slurm/fit.sh
    ```
+
+   Tessera embeddings:
 
    ```bash
    sbatch --export=ALL,ENVIRONMENT_ROOT=/gpfs/users/sassis/Benchmarking-foundation-models-for-satellite-image-segmentation/.venv,CONFIG_FILE=/gpfs/users/sassis/Benchmarking-foundation-models-for-satellite-image-segmentation/configurations/fitting/tessera_ruche.yaml,PASTIS_R_ROOT=/gpfs/workdir/sassis/data/PASTIS-R,EMBEDDING_ROOT=/gpfs/workdir/sassis/data/TESSERA_EMBEDDING slurm/fit.sh
    ```
 
-   ```batch
+   ALISE embeddings:
+
+   ```bash
    sbatch --export=ALL,ENVIRONMENT_ROOT=/gpfs/users/sassis/Benchmarking-foundation-models-for-satellite-image-segmentation/.venv,CONFIG_FILE=/gpfs/users/sassis/Benchmarking-foundation-models-for-satellite-image-segmentation/configurations/fitting/alise_ruche.yaml,PASTIS_R_ROOT=/gpfs/workdir/sassis/data/PASTIS-R,EMBEDDING_ROOT=/gpfs/workdir/sassis/data/ALISE_EMB slurm/fita100.sh
    ```
 
 7. Test it by doing the same command, but with `slurm/test.sh` instead of
    `slurm/fit.sh` and the testing config file instead of the fitting one.
+
+   Partition used : cpu_short, accelerator: cpu, devices: 1
+
+   Alpha Earth:
+
+   ```bash
+   sbatch --export=ALL,ENVIRONMENT_ROOT=/gpfs/users/sassis/Benchmarking-foundation-models-for-satellite-image-segmentation/.venv,CONFIG_FILE=/gpfs/users/sassis/Benchmarking-foundation-models-for-satellite-image-segmentation/configurations/testing/alphaearth_ruche.yaml,PASTIS_R_ROOT=/gpfs/workdir/sassis/data/PASTIS-R,EMBEDDING_ROOT=/gpfs/workdir/sassis/data/AE_EMBEDDING slurm/test.sh
+   ```
+
+   Tessera embeddings:
+
+   ```bash
+   sbatch --export=ALL,ENVIRONMENT_ROOT=/gpfs/users/sassis/Benchmarking-foundation-models-for-satellite-image-segmentation/.venv,CONFIG_FILE=/gpfs/users/sassis/Benchmarking-foundation-models-for-satellite-image-segmentation/configurations/testing/tessera_ruche.yaml,PASTIS_R_ROOT=/gpfs/workdir/sassis/data/PASTIS-R,EMBEDDING_ROOT=/gpfs/workdir/sassis/data/TESSERA_EMBEDDING slurm/test.sh
+   ```
+
+   ALISE:
+
+   ```bash
+   sbatch --export=ALL,ENVIRONMENT_ROOT=/gpfs/users/sassis/Benchmarking-foundation-models-for-satellite-image-segmentation/.venv,CONFIG_FILE=/gpfs/users/sassis/Benchmarking-foundation-models-for-satellite-image-segmentation/configurations/testing/alise_ruche.yaml,PASTIS_R_ROOT=/gpfs/workdir/sassis/data/PASTIS-R,EMBEDDING_ROOT=/gpfs/workdir/sassis/data/ALISE_EMB slurm/test.sh
+   ```
+
+8. Test it on the preview dataset (the preview dataset contain a small bunch of
+   samples)
+
+   Do the same as above but with the preview config files instead of the regular
+   ones, and with the preview embedding root instead of the regular one.
