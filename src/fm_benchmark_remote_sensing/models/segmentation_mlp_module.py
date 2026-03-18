@@ -7,6 +7,7 @@ from pytorch_lightning.loggers import WandbLogger
 import torch
 from torch import nn
 from torchmetrics.classification import (
+    MulticlassAccuracy,
     MulticlassF1Score,
     MulticlassJaccardIndex,
 )
@@ -93,6 +94,11 @@ class SegmentationMLPModule(L.LightningModule):
             ignore_index=self.ignore_index,
             average="macro",
         )
+        self.train_accuracy = MulticlassAccuracy(
+            num_classes=self.num_classes,
+            ignore_index=self.ignore_index,
+            average="micro",
+        )
 
         # --- Val metrics ---
         self.val_test_miou = MulticlassJaccardIndex(
@@ -104,6 +110,16 @@ class SegmentationMLPModule(L.LightningModule):
             num_classes=self.num_classes,
             ignore_index=self.ignore_index,
             average="macro",
+        )
+        self.val_test_accuracy = MulticlassAccuracy(
+            num_classes=self.num_classes,
+            ignore_index=self.ignore_index,
+            average="micro",
+        )
+        self.val_test_f1_per_class = MulticlassF1Score(
+            num_classes=self.num_classes,
+            ignore_index=self.ignore_index,
+            average="none",
         )
 
         # --- Sauvegarde de prédictions ---
@@ -161,6 +177,7 @@ class SegmentationMLPModule(L.LightningModule):
         preds = torch.argmax(logits, dim=-1)
         self.train_miou(preds, mask)
         self.train_f1_macro(preds, mask)
+        self.train_accuracy(preds, mask)
         self.log(
             "train/mIoU_epoch",
             self.train_miou,
@@ -177,6 +194,14 @@ class SegmentationMLPModule(L.LightningModule):
             prog_bar=True,
             sync_dist=True,
         )
+        self.log(
+            "train/accuracy_epoch",
+            self.train_accuracy,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=True,
+            sync_dist=True,
+        )
         return loss
 
     def shared_test_step(self, batch, _: int, stage: str) -> dict[str, torch.Tensor]:
@@ -188,6 +213,8 @@ class SegmentationMLPModule(L.LightningModule):
         preds = torch.argmax(logits, dim=-1)
         self.val_test_miou(preds, mask)
         self.val_test_f1_macro(preds, mask)
+        self.val_test_accuracy(preds, mask)
+        self.val_test_f1_per_class(preds, mask)
         loss = self._loss(logits, mask)
 
         self.log(
@@ -212,6 +239,21 @@ class SegmentationMLPModule(L.LightningModule):
             on_step=False,
             on_epoch=True,
             prog_bar=True,
+            sync_dist=True,
+        )
+        self.log(
+            f"{stage}/accuracy_epoch",
+            self.val_test_accuracy,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=True,
+            sync_dist=True,
+        )
+        self.log(
+            f"{stage}/F1_per_class_epoch",
+            self.val_test_f1_per_class,
+            on_step=False,
+            on_epoch=True,
             sync_dist=True,
         )
 
@@ -327,6 +369,7 @@ class SegmentationMLPModule(L.LightningModule):
             return
 
         self.shared_epoch_end(stage="test")
+
         flat_preds: list[int] = []
         flat_true: list[int] = []
 

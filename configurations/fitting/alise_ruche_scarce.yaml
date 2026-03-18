@@ -78,7 +78,9 @@ data:
     pin_memory: true
     val_fold: 4
     test_fold: 5
-    max_patches_per_fold: 30 # same as ALISE experiments
+    scarce_csv_root: data/config_pastis_minitraining
+    scarce_fold_idx: 0 # Use seed_0 (first experiment)
+    scarce_nb_patches: 30 # Same as ALISE experiments
 
 optimizer:
   class_path: torch.optim.Adam

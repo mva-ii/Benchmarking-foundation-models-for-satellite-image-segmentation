@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Dict, List, Literal, Optional, Sequence, Tuple
 
 import lightning as L
+import pandas as pd
 from torch.utils.data import DataLoader
 
 from fm_benchmark_remote_sensing.data.embedding_pastis.fm_alise import AliseFM
@@ -80,6 +81,31 @@ def split_by_folds(
     return train_pids, val_pids, test_pids
 
 
+def read_patch_ids_from_csv(csv_path: Path) -> List[int]:
+    """
+    Read patch IDs from a CSV file (e.g., selected_patches_fold_1_nb_30_seed_0.csv).
+    The CSV is expected to have an 'id_patch' column.
+
+    Follows the same pattern as ALISE:
+    https://github.com/irisdum/alise/blob/a38bf2baab1c10bff582b0c9574325fbf14c4c52/src/mt_ssl/data/dataset/pastis.py#L173-L176
+    """
+    csv_path = Path(csv_path)
+    if not csv_path.exists():
+        raise FileNotFoundError(f"CSV file not found: {csv_path}")
+
+    df_selected_patch = pd.read_csv(csv_path)
+
+    if "id_patch" not in df_selected_patch.columns:
+        raise ValueError(f"CSV file {csv_path} does not have 'id_patch' column")
+
+    patch_ids = df_selected_patch["id_patch"].astype("int").tolist()
+
+    if not patch_ids:
+        raise RuntimeError(f"No patch IDs found in {csv_path}")
+
+    return patch_ids
+
+
 def build_fm(name: str, embedding_root: Path) -> FMBase:
     key = name.strip().lower()
     if key == "tessera":
@@ -97,6 +123,7 @@ class EmbeddingDataModule(L.LightningDataModule):
       - split par Fold dans metadata.geojson
       - 3 dataloaders: train/val/test
       - collate basique (collate_items)
+      - Support scarce data via CSV files (similar to ALISE implementation)
     """
 
     def __init__(
@@ -111,6 +138,9 @@ class EmbeddingDataModule(L.LightningDataModule):
         test_fold: int,
         subset_patch_ids: Optional[Sequence[int]] = None,
         max_patches_per_fold: Optional[int] = None,
+        scarce_csv_root: Optional[Path] = None,
+        scarce_fold_idx: Optional[int] = None,
+        scarce_nb_patches: Optional[int] = None,
     ) -> None:
         super().__init__()
         self.pastis_root = Path(pastis_r_root)
@@ -123,26 +153,58 @@ class EmbeddingDataModule(L.LightningDataModule):
         self.subset_patch_ids = subset_patch_ids
         self.max_patches_per_fold = max_patches_per_fold
 
+        # Scarce data parameters (similar to ALISE)
+        self.scarce_csv_root = Path(scarce_csv_root) if scarce_csv_root else None
+        self.scarce_fold_idx = scarce_fold_idx
+        self.scarce_nb_patches = scarce_nb_patches
+
         self.train_ds: Optional[PastisEmbeddingDataset] = None
         self.val_ds: Optional[PastisEmbeddingDataset] = None
         self.test_ds: Optional[PastisEmbeddingDataset] = None
 
     def setup(self, stage: str | None = None) -> None:
         pid_to_fold = read_pid_to_fold(self.pastis_root / "metadata.geojson")
-        train_pids, val_pids, test_pids = split_by_folds(
-            pid_to_fold, self.val_fold, self.test_fold
-        )
 
-        if self.subset_patch_ids is not None:
-            wanted = {int(x) for x in self.subset_patch_ids}
-            train_pids = [pid for pid in train_pids if pid in wanted]
-            val_pids = [pid for pid in val_pids if pid in wanted]
-            test_pids = [pid for pid in test_pids if pid in wanted]
+        # Use scarce data if parameters are provided
+        if (
+            self.scarce_csv_root is not None
+            and self.scarce_fold_idx is not None
+            and self.scarce_nb_patches is not None
+        ):
+            # Load patch IDs from CSV files for each fold (similar to ALISE)
+            train_csv_file = (
+                self.scarce_csv_root
+                / f"selected_patches_fold_{self.test_fold}_nb_{self.scarce_nb_patches}_seed_{self.scarce_fold_idx}.csv"
+            )
+            val_csv_file = (
+                self.scarce_csv_root
+                / f"selected_patches_fold_{self.val_fold}_nb_{self.scarce_nb_patches}_seed_{self.scarce_fold_idx}.csv"
+            )
 
-        if self.max_patches_per_fold is not None:
-            train_pids = train_pids[: self.max_patches_per_fold]
-            val_pids = val_pids[: self.max_patches_per_fold]
-            test_pids = test_pids[: self.max_patches_per_fold]
+            train_pids = read_patch_ids_from_csv(train_csv_file)
+            val_pids = read_patch_ids_from_csv(val_csv_file)
+
+            # For test, use all patches from test fold
+            test_pids = [
+                pid for pid, fold in pid_to_fold.items() if fold == self.test_fold
+            ]
+            test_pids.sort()
+        else:
+            # Standard fold-based splitting
+            train_pids, val_pids, test_pids = split_by_folds(
+                pid_to_fold, self.val_fold, self.test_fold
+            )
+
+            if self.subset_patch_ids is not None:
+                wanted = {int(x) for x in self.subset_patch_ids}
+                train_pids = [pid for pid in train_pids if pid in wanted]
+                val_pids = [pid for pid in val_pids if pid in wanted]
+                test_pids = [pid for pid in test_pids if pid in wanted]
+
+            if self.max_patches_per_fold is not None:
+                train_pids = train_pids[: self.max_patches_per_fold]
+                val_pids = val_pids[: self.max_patches_per_fold]
+                test_pids = test_pids[: self.max_patches_per_fold]
 
         if stage in (None, "fit"):
             self.train_ds = PastisEmbeddingDataset(
