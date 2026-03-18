@@ -78,7 +78,7 @@ data:
   class_path: fm_benchmark_remote_sensing.data.PastisRawDataModule
   init_args:
     pastis_r_root: null # Use --data.init_args.pastis_r_root at runtime
-    batch_size: 256
+    batch_size: 16
     num_workers: 39
     pin_memory: true
     val_fold: 4
