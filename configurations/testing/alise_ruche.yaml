@@ -1,9 +1,9 @@
 # lightning.pytorch==2.6.1
 seed_everything: 42
 trainer:
-  accelerator: auto
+  accelerator: cpu
   strategy: auto
-  devices: 4
+  devices: 1
   num_nodes: 1
   precision: null
   logger:
@@ -65,7 +65,7 @@ model:
       hidden_dim_2: 256
       num_classes: 18
     remap_to_ignore_index: 18
-    save_n_batches: 3 # alise embedding are huge
+    save_n_batches: 0 # alise embedding are huge
 
 data:
   class_path: fm_benchmark_remote_sensing.data.EmbeddingDataModule
@@ -73,9 +73,9 @@ data:
     pastis_r_root: null
     embedding_type: alise
     embedding_root: null
-    batch_size: 32
-    num_workers: 10
-    pin_memory: true
+    batch_size: 256
+    num_workers: 39
+    pin_memory: false
     val_fold: 4
     test_fold: 5
 
