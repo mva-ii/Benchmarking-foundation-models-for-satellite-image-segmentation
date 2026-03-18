@@ -215,13 +215,6 @@ class SegmentationMLPModule(L.LightningModule):
             sync_dist=True,
         )
 
-        # prevent memory leak
-        if self.save_n_batches is not None:
-            if self._saved_batch_count >= self.save_n_batches:
-                return {
-                    "loss": loss,
-                }
-
         return {
             "loss": loss,
             "pid": batch["pid"],
@@ -320,10 +313,8 @@ class SegmentationMLPModule(L.LightningModule):
 
     def test_step(self, batch, batch_idx: int) -> dict[str, torch.Tensor]:
         outputs = self.shared_test_step(batch, batch_idx, stage="test")
-        # Detach to prevent keeping computation graph in memory
-        if "preds" in outputs and "targets" in outputs:
-            self.test_preds.append(outputs["preds"].detach())
-            self.test_y_true.append(outputs["targets"].detach())
+        self.test_preds.append(outputs["preds"].detach())
+        self.test_y_true.append(outputs["targets"].detach())
         return outputs
 
     def on_test_batch_end(
