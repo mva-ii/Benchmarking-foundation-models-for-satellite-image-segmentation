@@ -321,8 +321,9 @@ class SegmentationMLPModule(L.LightningModule):
     def test_step(self, batch, batch_idx: int) -> dict[str, torch.Tensor]:
         outputs = self.shared_test_step(batch, batch_idx, stage="test")
         # Detach to prevent keeping computation graph in memory
-        self.test_preds.append(outputs["preds"].detach())
-        self.test_y_true.append(outputs["targets"].detach())
+        if "preds" in outputs and "targets" in outputs:
+            self.test_preds.append(outputs["preds"].detach())
+            self.test_y_true.append(outputs["targets"].detach())
         return outputs
 
     def on_test_batch_end(
