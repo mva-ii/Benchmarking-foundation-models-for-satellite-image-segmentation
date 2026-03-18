@@ -25,11 +25,10 @@ import wandb
 
 
 class SegmentationUTAEModule(L.LightningModule):
-    """
-    Lightning module for UTAE temporal segmentation.
+    """Lightning module for UTAE temporal segmentation.
 
     - Takes temporal sequences (B, T, C, H, W)
-    - Returns segmentation logits (B, H, W, num_classes)
+    - Returns segmentation logits (B, num_classes, H, W) (channel-first)
     - Logs: mIoU, F1 macro, accuracy per epoch
     - Handles label remapping: 0 and 19 ignored, 1-18 -> 0-17
     """
@@ -85,7 +84,12 @@ class SegmentationUTAEModule(L.LightningModule):
         if decoder_widths is None:
             decoder_widths = [32, 32, 64, 128]
         if out_conv is None:
-            out_conv = [32, 20]
+            out_conv = [32, self.num_classes]
+        elif int(out_conv[-1]) != self.num_classes:
+            raise ValueError(
+                f"out_conv[-1]={out_conv[-1]} must equal num_classes={self.num_classes} "
+                f"(learned classes after remapping). Update your config (e.g. out_conv: [32, {self.num_classes}])."
+            )
 
         # Initialize UTAE model
         self.utae = UTAE(
@@ -202,9 +206,9 @@ class SegmentationUTAEModule(L.LightningModule):
             dates: (B, T) day offsets for positional encoding (optional)
 
         Returns:
-            logits: (B, H, W, num_classes)
+            logits: (B, num_classes, H, W)
         """
-        # UTAE expects (B, T, C, H, W) and returns (B, H, W, out_conv[-1])
+        # UTAE expects (B, T, C, H, W) and returns channel-first logits (B, out_conv[-1], H, W)
         logits = self.utae(data, batch_positions=dates)
         return logits
 
@@ -221,10 +225,42 @@ class SegmentationUTAEModule(L.LightningModule):
         m[ignore_mask] = self.ignore_index
         return m
 
-    def _loss(self, logits_bhwk: torch.Tensor, masks_bhw: torch.Tensor) -> torch.Tensor:
+    def _as_bkhw(self, logits: torch.Tensor) -> torch.Tensor:
+        """Normalize logits to (B, K, H, W)."""
+        if logits.ndim != 4:
+            raise ValueError(f"Expected 4D logits, got shape={tuple(logits.shape)}")
+
+        # UTAE returns channel-first logits by default.
+        if logits.shape[1] == self.num_classes:
+            return logits.contiguous()
+
+        # Be tolerant to channel-last logits if a caller wraps/reorders outputs.
+        if logits.shape[-1] == self.num_classes:
+            return logits.permute(0, 3, 1, 2).contiguous()
+
+        raise ValueError(
+            f"Logits must have num_classes={self.num_classes} either in dim=1 (B,K,H,W) "
+            f"or dim=-1 (B,H,W,K). Got shape={tuple(logits.shape)}"
+        )
+
+    def _preds_from_logits(self, logits: torch.Tensor) -> torch.Tensor:
+        """Return predicted class indices with shape (B, H, W)."""
+        if logits.ndim != 4:
+            raise ValueError(f"Expected 4D logits, got shape={tuple(logits.shape)}")
+
+        if logits.shape[1] == self.num_classes:  # (B, K, H, W)
+            return torch.argmax(logits, dim=1)
+        if logits.shape[-1] == self.num_classes:  # (B, H, W, K)
+            return torch.argmax(logits, dim=-1)
+
+        raise ValueError(
+            f"Logits must have num_classes={self.num_classes} either in dim=1 or dim=-1. "
+            f"Got shape={tuple(logits.shape)}"
+        )
+
+    def _loss(self, logits: torch.Tensor, masks_bhw: torch.Tensor) -> torch.Tensor:
         """Compute cross-entropy loss."""
-        # CrossEntropyLoss expects (B, K, H, W)
-        logits_bkhw = logits_bhwk.permute(0, 3, 1, 2).contiguous()
+        logits_bkhw = self._as_bkhw(logits)
         return self.criterion(logits_bkhw, masks_bhw)
 
     @override
@@ -234,7 +270,7 @@ class SegmentationUTAEModule(L.LightningModule):
         mask_orig = batch["masks"]  # (B, H, W)
 
         mask = self._remap_targets(mask_orig)
-        logits = self(data, dates)  # (B, H, W, num_classes)
+        logits = self(data, dates)  # (B, num_classes, H, W)
         loss = self._loss(logits, mask)
 
         self.log(
@@ -246,7 +282,7 @@ class SegmentationUTAEModule(L.LightningModule):
             sync_dist=True,
         )
 
-        preds = torch.argmax(logits, dim=-1)
+        preds = self._preds_from_logits(logits)
         self.train_miou(preds, mask)
         self.train_f1_macro(preds, mask)
         self.train_accuracy(preds, mask)
@@ -284,7 +320,7 @@ class SegmentationUTAEModule(L.LightningModule):
 
         mask = self._remap_targets(mask_orig)
         logits = self(data, dates)
-        preds = torch.argmax(logits, dim=-1)
+        preds = self._preds_from_logits(logits)
 
         self.val_test_miou(preds, mask)
         self.val_test_f1_macro(preds, mask)
