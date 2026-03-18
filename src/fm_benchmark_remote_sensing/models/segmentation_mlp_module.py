@@ -6,6 +6,7 @@ import lightning as L
 from pytorch_lightning.loggers import WandbLogger
 import torch
 from torch import nn
+from torchmetrics import ClasswiseWrapper
 from torchmetrics.classification import (
     MulticlassAccuracy,
     MulticlassF1Score,
@@ -120,9 +121,11 @@ class SegmentationMLPModule(L.LightningModule):
             num_classes=self.num_classes,
             ignore_index=self.ignore_index,
             average="none",
-            sync_on_compute=False,
-            compute_on_cpu=False,
-            dist_sync_on_step=True,
+        )
+        self.wrapped_val_test_f1_per_class = ClasswiseWrapper(
+            self.val_test_f1_per_class,
+            prefix="F1_",
+            labels=self.REMAPPED_CLASS_NAMES,
         )
 
         # --- Sauvegarde de prédictions ---
@@ -217,7 +220,10 @@ class SegmentationMLPModule(L.LightningModule):
         self.val_test_miou(preds, mask)
         self.val_test_f1_macro(preds, mask)
         self.val_test_accuracy(preds, mask)
-        self.val_test_f1_per_class(preds, mask)
+        val_test_f1_per_class_dict = self.wrapped_val_test_f1_per_class(preds, mask)
+        val_test_f1_per_class_dict = {
+            f"{stage}/{key}": value for key, value in val_test_f1_per_class_dict.items()
+        }
         loss = self._loss(logits, mask)
 
         self.log(
@@ -236,16 +242,14 @@ class SegmentationMLPModule(L.LightningModule):
             prog_bar=True,
             sync_dist=True,
         )
-        for i in range(self.num_classes):
-            self.log(
-                f"{stage}/F1_{self.REMAPPED_CLASS_NAMES[i]}_epoch",
-                self.val_test_f1_per_class[i],
-                on_step=False,
-                on_epoch=True,
-                prog_bar=False,
-                sync_dist=False,  # ! IMPORTANT https://github.com/Lightning-AI/pytorch-lightning/issues/18803
-                metric_attribute="val_test_f1_per_class",
-            )
+
+        self.log_dict(
+            val_test_f1_per_class_dict,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=False,
+            sync_dist=False,  # ! IMPORTANT https://github.com/Lightning-AI/pytorch-lightning/issues/18803
+        )
 
         self.log(
             f"{stage}/F1_macro_epoch",
