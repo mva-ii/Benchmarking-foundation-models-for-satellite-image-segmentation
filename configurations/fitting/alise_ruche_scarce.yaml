@@ -73,8 +73,8 @@ data:
     pastis_r_root: null
     embedding_type: alise
     embedding_root: null
-    batch_size: 24
-    num_workers: 10
+    batch_size: 16
+    num_workers: 8
     pin_memory: true
     val_fold: 4
     test_fold: 5
