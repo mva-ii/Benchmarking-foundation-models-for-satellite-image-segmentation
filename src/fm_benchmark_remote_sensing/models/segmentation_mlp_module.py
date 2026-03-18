@@ -241,6 +241,7 @@ class SegmentationMLPModule(L.LightningModule):
                 on_epoch=True,
                 prog_bar=False,
                 sync_dist=True,
+                metric_attribute="val_test_f1_per_class",
             )
 
         self.log(
