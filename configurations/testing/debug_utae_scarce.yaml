@@ -1,0 +1,106 @@
+# UTAE temporal segmentation with PASTIS-R raw data - Debug scarce config
+# For quick testing on GPU1 with WANDB_MODE=offline
+# Usage: WANDB_MODE=offline python -m lightning.pytorch.cli fit --config configurations/testing/debug_utae_scarce.yaml
+
+seed_everything: 42
+trainer:
+  accelerator: auto
+  strategy: auto
+  devices: 1
+  num_nodes: 1
+  precision: null
+  logger:
+    class_path: lightning.pytorch.loggers.WandbLogger
+    init_args:
+      project: benchmark-fm-models-remote-sensing
+      name: debug_utae_raw_scarce_s2_10ch
+      log_model: true
+      checkpoint_name: ${trainer.logger.init_args.name}
+  callbacks:
+    - class_path: lightning.pytorch.callbacks.ModelCheckpoint
+      init_args:
+        filename: "best-{epoch:02d}-{val_mIoU:.4f}"
+        monitor: "val/mIoU_epoch"
+        mode: "max"
+        save_top_k: 1
+        save_last: true
+  fast_dev_run: false
+  max_epochs: 1
+  min_epochs: null
+  max_steps: -1
+  min_steps: null
+  max_time: null
+  limit_train_batches: null
+  limit_val_batches: null
+  limit_test_batches: null
+  limit_predict_batches: null
+  overfit_batches: 0.0
+  val_check_interval: null
+  check_val_every_n_epoch: 1
+  num_sanity_val_steps: null
+  log_every_n_steps: 1
+  enable_checkpointing: null
+  enable_progress_bar: true
+  enable_model_summary: true
+  accumulate_grad_batches: 1
+  gradient_clip_val: null
+  gradient_clip_algorithm: null
+  deterministic: null
+  benchmark: null
+  inference_mode: true
+  use_distributed_sampler: false
+  profiler: null
+  detect_anomaly: true
+  barebones: false
+  plugins: null
+  sync_batchnorm: false
+  reload_dataloaders_every_n_epochs: 0
+  default_root_dir: null
+  enable_autolog_hparams: true
+  model_registry: null
+
+model:
+  class_path: fm_benchmark_remote_sensing.models.SegmentationUTAEModule
+  init_args:
+    input_dim: 10 # Sentinel-2 channels
+    encoder_widths: [64, 64, 64, 128]
+    decoder_widths: [32, 32, 64, 128]
+    out_conv: [32, 20]
+    str_conv_k: 4
+    str_conv_s: 2
+    str_conv_p: 1
+    agg_mode: "att_group"
+    encoder_norm: "group"
+    n_head: 16
+    d_model: 256
+    d_k: 4
+    pad_value: 0.0
+    padding_mode: "reflect"
+    remap_to_ignore_index: 18
+    save_n_batches: 2
+
+data:
+  class_path: fm_benchmark_remote_sensing.data.PastisRawDataModule
+  init_args:
+    pastis_r_root: data/preview-pertuis-pastis-r-embeddings/PASTIS_R
+    batch_size: 4
+    num_workers: 0
+    pin_memory: true
+    val_fold: 4
+    test_fold: 5
+    reference_date: "2018-09-01"
+    scarce_csv_root: data/config_pastis_minitraining
+    scarce_fold_idx: 0
+    scarce_nb_patches: 30
+    norm: true
+
+optimizer:
+  class_path: torch.optim.Adam
+  init_args:
+    lr: 0.001
+
+lr_scheduler: null
+weights_only: null
+datataset_download_path: data
+dataset_artifact_reference: benchmark-fm-models-remote-sensing/preview-pertuis-pastis-r-embeddings:latest
+checkpoint_reference: null

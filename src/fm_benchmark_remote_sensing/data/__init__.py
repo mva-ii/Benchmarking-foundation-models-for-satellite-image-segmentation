@@ -12,6 +12,7 @@ from .embedding_pastis.pastis_label_names import (
     BKG_LABEL_INDEX,
     VOID_LABEL_INDEX,
 )
+from .pastis_raw.pastis_r_raw_datamodule import PastisRawDataModule
 
 _all = [
     PastisEmbeddingPreviewDataset,
@@ -23,4 +24,5 @@ _all = [
     PASTIS_LABEL_NAMES,
     BKG_LABEL_INDEX,
     VOID_LABEL_INDEX,
+    PastisRawDataModule,
 ]
