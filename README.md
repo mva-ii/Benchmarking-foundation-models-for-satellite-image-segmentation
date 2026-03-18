@@ -56,7 +56,7 @@ Training on gpu_test:
    ```
 
    ```batch
-   sbatch --export=ALL,ENVIRONMENT_ROOT=/gpfs/users/sassis/Benchmarking-foundation-models-for-satellite-image-segmentation/.venv,CONFIG_FILE=/gpfs/users/sassis/Benchmarking-foundation-models-for-satellite-image-segmentation/configurations/fitting/alise_ruche.yaml,PASTIS_R_ROOT=/gpfs/workdir/sassis/data/PASTIS-R,EMBEDDING_ROOT=/gpfs/workdir/sassis/data/ALISE_EMB slurm/fit.sh
+   sbatch --export=ALL,ENVIRONMENT_ROOT=/gpfs/users/sassis/Benchmarking-foundation-models-for-satellite-image-segmentation/.venv,CONFIG_FILE=/gpfs/users/sassis/Benchmarking-foundation-models-for-satellite-image-segmentation/configurations/fitting/alise_ruche.yaml,PASTIS_R_ROOT=/gpfs/workdir/sassis/data/PASTIS-R,EMBEDDING_ROOT=/gpfs/workdir/sassis/data/ALISE_EMB slurm/fita100.sh
    ```
 
 7. Test it by doing the same command, but with `slurm/test.sh` instead of
