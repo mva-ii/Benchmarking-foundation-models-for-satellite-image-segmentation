@@ -12,7 +12,7 @@ trainer:
     class_path: lightning.pytorch.loggers.WandbLogger
     init_args:
       project: benchmark-fm-models-remote-sensing
-      name: utae_ruche_train_full_s2_10ch
+      name: utae_ruche_train_s2_10ch
       log_model: true
       checkpoint_name: ${trainer.logger.init_args.name}
   callbacks:
@@ -24,7 +24,7 @@ trainer:
         save_top_k: 1
         save_last: true
   fast_dev_run: false
-  max_epochs: 100
+  max_epochs: 200
   min_epochs: null
   max_steps: -1
   min_steps: null
@@ -81,8 +81,8 @@ data:
   class_path: fm_benchmark_remote_sensing.data.PastisRawDataModule
   init_args:
     pastis_r_root: null # Use --data.init_args.pastis_r_root at runtime
-    batch_size: 32
-    num_workers: 10
+    batch_size: 10
+    num_workers: 8
     pin_memory: true
     val_fold: 4
     test_fold: 5
