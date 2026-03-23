@@ -1,0 +1,8 @@
+torch
+torchnet
+numpy
+pandas
+geopandas
+torch_scatter
+lightning
+

@@ -1,0 +1,44 @@
+{
+    "model": "utae",
+    "encoder_widths": [
+        64,
+        64,
+        64,
+        128
+    ],
+    "decoder_widths": [
+        32,
+        32,
+        64,
+        128
+    ],
+    "out_conv": [
+        32,
+        20
+    ],
+    "str_conv_k": 4,
+    "str_conv_s": 2,
+    "str_conv_p": 1,
+    "agg_mode": "att_group",
+    "encoder_norm": "group",
+    "n_head": 16,
+    "d_model": 256,
+    "d_k": 4,
+    "dataset_folder": "/gpfs/workdir/guerrerojf/data/PASTIS",
+    "res_dir": "./results_semantic",
+    "num_workers": 2,
+    "rdm_seed": 1,
+    "device": "cuda",
+    "display_step": 50,
+    "cache": false,
+    "epochs": 100,
+    "batch_size": 2,
+    "lr": 0.001,
+    "mono_date": null,
+    "ref_date": "2018-09-01",
+    "num_classes": 20,
+    "pad_value": 0,
+    "padding_mode": "reflect",
+    "val_every": 5,
+    "N_params": 1087260
+}
