@@ -1,0 +1,71 @@
+\documentclass[11pt]{article}
+\usepackage{theme}
+\usepackage{shortcuts}
+\usepackage[backend=biber, sorting=none]{biblatex}
+\usepackage{hyperref}
+\usepackage[title]{appendix}
+\usepackage{subcaption}
+\usepackage{float}
+\usepackage{siunitx}
+\usepackage{array}
+\usepackage{tabularx}   % For auto-adjusting column widths
+\usepackage[figurename=Fig.,font=small,labelfont=bf,labelsep=space]{caption}
+\renewcommand{\figureautorefname}{Fig.}
+\addbibresource{Library.bib}
+\def\mathdefault#1{#1}
+\setlist{leftmargin=5mm}
+\setlength\itemsep{0mm}
+% Document parameters
+% Document title
+\title{Benchmarking Foundation Models using Satellite Image Time
+Series for Land Monitoring - MVA 2025/2026}
+\author{
+  Jean-François Guerrero
+  \email{jean-francois.guerrero@ens-paris-saclay.fr} \\ % student 1
+  Simon Sassi \email{sassisimon84@gmail.com} % student 2
+}
+
+\begin{document}
+\maketitle
+\newpage
+\section{Introduction}
+\section{Dataset}
+We use the dataset PASTIS (Panoptic Agricultural Satellite TIme Series)
+There are 2433 sequences of multi-spectral of shape 10*128*128.Each
+sequences contains between 38 and 61 images. The satellite THEIA
+provides observations.
+The 10 channels correspond to the non-atmospheric spectral
+bands of the Sentinel-2 satellite, after atmospheric correction and
+re-sampling at a spatial resolution of 10 meters per pixel.
+Observatios are taken in several region of France with different
+climates, (Normandie, Bourgogne,Alsace, Provence). Almost 30 $\%$ of
+pictures are covered by cloud.
+
+Each pixel is associated with a semantic label of 18 crop labels
+\section{Methods}
+\section{Results}
+\cite{feng2025tesseratemporalembeddingssurface}
+\cite{brown2025alphaearthfoundationsembeddingfield}
+% include table
+\input{figures/test_metrics_table}
+\input{figures/test_f1_per_class_table}
+\input{figures/test_metrics_scarce_table}
+
+\section{Summary of findings}
+
+\newpage
+\printbibliography
+
+\newpage
+\begin{appendices}
+  \section{Method}
+  % \begin{figure}
+  %   \centering
+  %   \includegraphics[width=\textwidth]{figures/fair_attri_architecture_schema.pdf}
+  %   \caption{Overview of our training framework.}
+  %   \label{fig:fair_attri_architecture_schema}
+  % \end{figure}
+  \section{Data}
+
+\end{appendices}
+\end{document}
