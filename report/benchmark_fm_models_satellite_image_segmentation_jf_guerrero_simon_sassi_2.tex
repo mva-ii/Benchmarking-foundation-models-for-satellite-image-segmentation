@@ -39,18 +39,16 @@ bands of the Sentinel-2 satellite, after atmospheric correction and
 re-sampling at a spatial resolution of 10 meters per pixel.
 Observatios are taken in several region of France with different
 climates, (Normandie, Bourgogne,Alsace, Provence). Almost 30 $\%$ of
-pictures are covered by cloud.
+pictures are covered by cloud. \cite{dumeur}
 
 Each pixel is associated with a semantic label of 18 crop labels
+% TODO : problème d'imbalance des classes MIOU, mettre que les
+% classes ne sont pas balancées, pas très fair,
+% TODO : F1 par classe sur le scarce ?
+% TODO : Nombre de paramètres par modèles
+
 \section{Methods}
 \section{Results}
-\cite{feng2025tesseratemporalembeddingssurface}
-\cite{brown2025alphaearthfoundationsembeddingfield}
-% include table
-\input{figures/test_metrics_table}
-\input{figures/test_f1_per_class_table}
-\input{figures/test_metrics_scarce_table}
-
 \section{Summary of findings}
 
 \newpage
@@ -67,5 +65,39 @@ Each pixel is associated with a semantic label of 18 crop labels
   % \end{figure}
   \section{Data}
 
+  \section{Tables}
+  \begin{table}[ht] % Ajout d'un spécificateur de position
+    \centering % Pour centrer le tableau sur la page
+    \caption{Test metrics}
+    \label{tab:test_metrics}
+    \begin{tabular}{|l| ccc|}
+      \hline
+      Model & mIoU & F1 Macro & Overall accuracy \\ % Ajout d'un
+      % titre de colonne
+      \hline
+      AlphaEarth & 0.5287 & 0.6526 & 0.8417 \\
+      Tessera    & 0.5607 & 0.7018 & 0.8257 \\
+      ALISE      & 0.6009 & \textbf{0.7235} & 0.8651 \\
+      U-TAE &  \textbf {0.7219} & - &  \textbf{0.9170} \\
+      \hline
+    \end{tabular}
+  \end{table}
+
+  \begin{table}[ht]
+    \centering
+    % Réduit légèrement la taille pour que les noms longs rentrent
+    \caption{Test metrics with scarce data (30 patches per fold)}
+    \label{tab:test_metrics_scarce}
+    \begin{tabular}{|l |ccc|}
+      \hline
+      Model & mIoU & F1 Macro & Overall accuracy \\
+      \hline
+      AlphaEarth & 0.2867 & 0.3755 & 0.7267 \\
+      Tessera & 0.4387 & \textbf{0.5765} & 0.7621 \\
+      ALISE & \textbf{0.4482} & 0.5729 & \textbf{0.7898} \\
+      U-TAE & 0.3869 & 0.5115 & 0.7043 \\
+      \hline
+    \end{tabular}
+  \end{table}
 \end{appendices}
 \end{document}
