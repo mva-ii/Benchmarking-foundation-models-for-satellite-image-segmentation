@@ -53,8 +53,22 @@ field surveys. Beyond data scarcity, many existing models are
 designed for a single specific task and struggle to integrate the
 diverse modalities provided by various sensors to enrich image representations.
 
+\begin{figure}
+  \centering
+
+  \includegraphics[width=0.5\textwidth, clip, trim=1cm 1cm 1cm 1cm]
+  {figures/foundation_model_schema.png}
+  \caption{A foundation model can centralize the information from all
+    the data from various modalities. This
+    one model can then be adapted to a wide range of downstream tasks.
+    Courtesy of
+  \cite{bommasani2022opportunitiesrisksfoundationmodels}}
+  \label{fig:foundation_model_schema}
+\end{figure}
+
 To address these limitations, there is a burgeoning interest in
-\textbf{Foundation Models (FMs)}. These models are designed to
+\textbf{Foundation Models (FMs)}
+(\autoref{fig:foundation_model_schema}). These models are designed to
 process data from heterogeneous sensors and learn robust
 representations that can be adapted to a wide range of downstream
 tasks, even those suffering from label scarcity. FMs aim to
