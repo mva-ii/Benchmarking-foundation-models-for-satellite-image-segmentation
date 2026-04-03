@@ -34,25 +34,175 @@ Series for Land Monitoring - MVA 2025/2026}
 \maketitle
 \newpage
 \section{Introduction}
-\section{Dataset}
-We use the dataset PASTIS (Panoptic Agricultural Satellite TIme Series)
-There are 2433 sequences of multi-spectral of shape 10*128*128.Each
-sequences contains between 38 and 61 images. The satellite THEIA
-provides observations.
-The 10 channels correspond to the non-atmospheric spectral
-bands of the Sentinel-2 satellite, after atmospheric correction and
-re-sampling at a spatial resolution of 10 meters per pixel.
-Observatios are taken in several region of France with different
-climates, (Normandie, Bourgogne,Alsace, Provence). Almost 30 $\%$ of
-pictures are covered by cloud. \cite{dumeur}
 
-Each pixel is associated with a semantic label of 18 crop labels
-% TODO : problème d'imbalance des classes MIOU, mettre que les
-% classes ne sont pas balancées, pas très fair,
-% TODO : F1 par classe sur le scarce ?
+Accurate and up-to-date mapping of land surfaces is a critical
+challenge for monitoring and mitigating the effects of climate
+change. Over the past decade, satellites have provided
+high-resolution Satellite Time Series (SITS) of multi-spectral
+imagery. While Deep Neural Networks (DNNs) have emerged as powerful
+tools to exploit this massive volume of data, their performance
+remains heavily dependent on the availability of large-scale labeled datasets.
+
+In remote sensing, the  \textbf{scarcity of labeled data is a primary
+bottleneck}. Launching and maintaining satellite constellations is
+costly, and revisit frequencies may not always capture the necessary
+temporal granularity for every zone. Furthermore, generating
+ground-truth labels is a labor-intensive process requiring extensive
+field surveys. Beyond data scarcity, many existing models are
+designed for a single specific task and struggle to integrate the
+diverse modalities provided by various sensors to enrich image representations.
+
+To address these limitations, there is a burgeoning interest in
+\textbf{Foundation Models (FMs)}. These models are designed to
+process data from heterogeneous sensors and learn robust
+representations that can be adapted to a wide range of downstream
+tasks, even those suffering from label scarcity. FMs aim to
+standardize SITS processing by generating rich embeddings. For every
+pixel, the model computes a high-dimensional vector that encapsulates
+spatial, temporal, and physical characteristics.
+
+In this project, we evaluate and compare the performance of several
+FMs on the task of crop segmentation. Specifically, we benchmark
+\textbf{ALISE, TESSERA}, and \textbf{AlphaEarth} against U-TAE, a
+state-of-the-art specialized architecture that does not follow the
+foundation model paradigm.
+
+\section{Dataset}
+
+We utilized the \textbf{PASTIS} (Panoptic Agricultural Satellite TIme
+Series) dataset \cite{garnot2022panopticsegmentationsatelliteimage},
+which consists of 2,433
+multi-spectral sequences. Each sequence is structured as a $10 \times
+128 \times 128$ tensor, containing between 38 and 61 temporal
+observations. These data are sourced from the \textbf{THEIA}
+platform, providing Sentinel-2 satellite imagery.
+
+The 10 spectral channels correspond to the non-atmospheric bands of
+Sentinel-2, following atmospheric correction and spatial resampling
+at a 10-meter resolution. The observations span four French regions
+with distinct climatic conditions: \textit{Normandie, Bourgogne,
+Alsace,} and \textit{Provence}. Notably, approximately 30\% of the
+images in the dataset are affected by cloud cover, posing a
+significant challenge for temporal analysis.
+
+Based on the French Land Parcel Information System (RPG), the
+agricultural fields are categorized into \textbf{18 distinct crop
+classes}. In addition to these, two specific labels are defined:
+\begin{itemize}
+  \item \textbf{Void label:} Assigned to pixels belonging to parcels
+    outside the 18 selected classes, or to pixels where the parcel's
+    spatial extension within the patch is less than 50\%.
+  \item \textbf{Background class:} Refers to pixels that do not
+    belong to any parcel declared in the RPG.
+\end{itemize}
+
+For robust evaluation, the patches are randomly subdivided into
+\textbf{five folds} to facilitate a cross-validation process. Note
+that the background class and the void label are not utilized during
+the training.
+
+\begin{figure}[ht]
+  \centering
+  \includegraphics[width=0.8\textwidth]{figures/repartition_pousse_pastis.png}
+  \caption{Distribution of crop growth stages (or classes) within the
+  PASTIS dataset.}
+  \label{fig:pastis_distribution}
+\end{figure}
+
 % TODO : Nombre de paramètres par modèles
 
 \section{Methods}
+
+\subsection{ALISE}
+\textbf{ALISE (ALigned SITS Encoder)}
+\cite{dumeur2024pavingwayfoundationmodels} is a foundation model
+designed to produce consistent representations for
+\textbf{multi-year, irregular, and unaligned SITS}.
+The architecture is composed of two main blocks:
+\begin{enumerate}
+  \item A \textbf{Spatial, Spectral, and Temporal Encoder (SSTE)},
+    which follows the \textbf{U-BARN} architecture,
+  \item A \textbf{Temporal Projector} that processes the irregular
+    and unaligned outputs of the SSTE to generate aligned SITS representations.
+\end{enumerate}
+
+U-BARN combines a \textbf{U-Net structure with a Transformer block}
+\cite{10414422} to capture multi-scale features. The U-Net,
+implemented with four down-sampling and up-sampling levels, extracts
+high-level spatial features. Input time series of shape $(B, T, C, H,
+W)$ are reshaped into $(B \times T, C, H, W)$ tensors for U-Net
+processing. To incorporate temporal information, the Day of the Year
+(DoY) is embedded into the feature space. After U-Net processing, the
+tensors of dimension $(B \times T, d_{model}, H, W)$ are reshaped to
+$(B \times H \times W, T, d_{model})$ before entering the Transformer
+block. This block processes all observations via a self-attention
+mechanism, enabling it to capture complex phenological patterns over
+time. The Transformer is pre-trained using Masked Time Series
+Modeling, learning to reconstruct the SITS even when several dates
+are corrupted (e.g., by cloud cover).
+
+\begin{figure}
+  \centering
+  \includegraphics[scale=0.6] {figures/ALISE U-BARN.png}
+  \caption{U-BARN Architecture}
+  \label{fig:u_barn_architecture}
+\end{figure}
+
+U-BARN outputs still depend of the number of image in the SITS. The
+role of the Temporal Projector is to align these SITS with different
+sizes. The projection is performed by a \textbf{multihead temporal
+  cross-attention mechanism between learnable queries and the  output
+of the SSTE}. Learning queries are vectors optimized during the
+training, they represent latent temporal features.  This process
+allows the model to selectively aggregate the most relevant temporal
+information, regardless of the acquisition frequency or the presence
+of clouds. The outputs from all attention heads are then concatenated
+along the feature dimension and processed by a Multi-Layer Perceptron
+(MLP) to produce the final aligned embedding.
+
+\begin{figure}
+  \centering
+  \includegraphics[scale=0.7]{figures/ALISE1.png}
+  \caption{ALISE Architecture}
+  \label{fig:alise_architecture}
+\end{figure}
+\subsection{U-TAE}
+
+Unlike the foundation models previously discussed, \textbf{U-TAE
+(U-Net with Temporal Attention Encoder)}
+\cite{garnot2022panopticsegmentationsatelliteimage}
+is a supervised architecture specifically designed for SITS
+segmentation and serves as the primary benchmark for the PASTIS dataset.
+
+The architecture follows a modified U-Net structure:
+\begin{enumerate}
+  \item \textbf{Spatial Encoding:} Each image in the sequence is
+    processed independently by a shared multi-level convolutional
+    encoder. For each level $l$, the encoder produces a feature map
+    of shape $(T \times C_l \times H_l \times W_l)$, where $H_l, W_l$
+    decrease as the depth $l$ increases.
+  \item \textbf{L-TAE (Light Temporal Attention Encoder):} To manage
+    computational complexity, the temporal attention masks are only
+    computed at the bottleneck (the lowest resolution level $L$).
+    These masks consist of pixel-wise attention weights that quantify
+    the importance of each acquisition date $t \in [1, T]$ for $G$
+    different groups of channels These $G$ groups of masks are then
+    spatially interpolated (resized) to match the dimensions of all
+    higher-level encoder maps ($l < L$). This allows the model to
+    apply temporal pooling at every scale without the overhead of
+    re-computing attention at high resolutions.
+  \item \textbf{Decoding:} For each level, the feature sequence is
+    collapsed into a single representation by a weighted temporal sum
+    using the attention masks.  Finally, these synthesized maps are
+    processed by a classic U-Net decoder to produce the final segmentation map.
+\end{enumerate}
+
+\begin{figure}
+  \centering
+  \includegraphics{figures/utae.png}
+  \caption{U-TAE Architecture}
+  \label{fig:utae_architecture}
+\end{figure}
 
 \subsection{TESSERA}
 TESSERA \cite{feng2025tesseratemporalembeddingssurface} (Temporal
@@ -475,12 +625,32 @@ by CNRS and Région Île-de-France
 \newpage
 \begin{appendices}
   \section{Method}
-  % \begin{figure}
-  %   \centering
-  %   \includegraphics[width=\textwidth]{figures/fair_attri_architecture_schema.pdf}
-  %   \caption{Overview of our training framework.}
-  %   \label{fig:fair_attri_architecture_schema}
-  % \end{figure}
+  \section{Method}
+
+  \begin{table}[ht]
+    \centering
+    \caption{Comparison of Foundation Models Architectures and
+    Pre-training Strategies.}
+    \label{tab:models_comparison}
+    \small % Pour gagner un peu de place si besoin
+    \begin{tabular}{@{}l p{3.5cm} l l c r@{}}
+      \toprule
+      \textbf{Model} & \textbf{Input Modalities} & \textbf{SSL Task}
+      & \textbf{Approach} & \textbf{Spatial Ext.} & \textbf{Dim.} \\ \midrule
+      \textbf{TESSERA} & SAR (S1), Optical (S2) & Contrastive &
+      Discriminative & \textit{No} & 128 \\
+      \textbf{AlphaEarth} & S1, S2, Thermal (L8/9) & Hybrid &
+      Generative & \textit{Yes} & 64 \\
+      \textbf{ALISE} & Optical (S2) & Hybrid & Generative &
+      \textit{Yes} & 640 \\
+      \textbf{U-TAE}* & Optical (S2) & N/A & Supervised &
+      \textit{Yes} & -- \\ \bottomrule
+    \end{tabular}
+    \begin{flushleft}
+      \footnotesize *U-TAE is used as a supervised baseline and does
+      not follow the FM paradigm.
+    \end{flushleft}
+  \end{table}
   \section{Data}
 
   \section{Tables}
