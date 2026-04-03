@@ -3,6 +3,11 @@
 \usepackage{shortcuts}
 \usepackage[backend=biber, sorting=none]{biblatex}
 \usepackage{hyperref}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage[section]{placeins}
+\usepackage[compress=jpeg, cachedir=figures/graphicscache]{graphicscache}
+\usepackage{makecell}
 \usepackage[title]{appendix}
 \usepackage{subcaption}
 \usepackage{float}
@@ -48,11 +53,424 @@ Each pixel is associated with a semantic label of 18 crop labels
 % TODO : Nombre de paramètres par modèles
 
 \section{Methods}
-\section{Results}
-\section{Summary of findings}
+
+\subsection{TESSERA}
+TESSERA \cite{feng2025tesseratemporalembeddingssurface} (Temporal
+  Embeddings of Surface Spectra for Earth
+Representation and Analysis) operates under the "Embedding-as-Data"
+paradigm, providing analysis-ready, pre-computed embeddings for each
+pixel at a global scale. The model exclusively processes time series
+at the pixel level and does not utilize explicit spatial features or
+spatial convolutions. Consequently, it achieves a direct
+multi-temporal fusion of the data, relying purely on the natural
+spatial correlation of real-world observations to form spatially
+coherent outputs.
+
+\begin{figure}[ht]
+  \centering
+  \includegraphics{figures/tessera_architecture.png}
+  \caption{(a) Overall architecture: multi-temporal Sentinel-1/2
+    observations are converted into modality-specific d-pixels,
+    augmented twice, and
+    encoded by dual branches with shared weights to produce compact 128-D
+    embeddings. (b) Zoom-in on the Sentinel-1 branch: temporal
+    sequences are processed by a 4-block Transformer followed by GRU pooling
+    to capture dynamic backscatter patterns before fusion into the
+    joint TESSERA embedding. Courtesy of
+  \cite{feng2025tesseratemporalembeddingssurface}.}
+  \label{fig:tessera_architecture}
+\end{figure}
+
+As illustrated in the overview of the TESSERA processing pipeline
+(\autoref{fig:tessera_architecture}), the architecture handles
+multi-modal data streams by
+extracting temporal sequences of optical (Sentinel-2) and radar
+(Sentinel-1) observations into modality-specific "d-pixels". The
+training strategy is akin to contrastive learning, specifically
+employing the Barlow Twins objective function. The model aims to
+maximize the similarity between two different "views" of the same
+geographic location. In this framework, a view corresponds simply to
+a time series of multiple modalities randomly sampled from the
+available observations within the same year. This sparse temporal
+sampling strategy forces the model to learn representations that
+remain robust and invariant to the irregularity and cloud
+obstructions typical of Earth Observation data. It produces
+128-dimensional embeddings for each pixel.
+This model is open, with the code, weights, and pre-computed
+embeddings available on the web.
+
+\subsection{AlphaEarth Foundations}
+In contrast to TESSERA's pixel-wise and primarily dual-modality
+focus, AlphaEarth Foundations
+\cite{brown2025alphaearthfoundationsembeddingfield} integrates a broader
+array of sensors and modalities. Its input sources and reconstructed
+outputs go far beyond
+standard optical and radar satellite imagery (Sentinel-1, Sentinel-2,
+Landsat 8/9), incorporating digital elevation models, LiDAR profiles
+(GEDI), and even continuous climate variables (ERA5-Land). By fusing
+these irregular and unaligned sources, AlphaEarth creates a
+different embedding space, representing the Earth's
+surface as a regular 64-dimensional embedding field.
+
+\begin{figure}[!htb]
+  \centering
+  \includegraphics[clip, trim=0 85cm 0 0]{figures/alpha_earth_architecture.png}
+  \caption{(A) Block diagram of the overall network architecture used
+    for video analysis. Preprocessing converts raw observation data
+    via normalization using global
+    statistics, and acquisition timestamps are converted to
+    sinusoidal timecodes. Individual source
+    encoders transform inputs to the same latent space before
+    entering the bulk of the model. Outputs are
+    summarized using conditional timecodes or "summary periods",
+    unique to each decoded source and
+    contrastive learning task. $\mu$ refers to the embedding outputs of
+    the model. The grey shaded region
+    constitutes the model. (B) Model outputs are treated as the mean
+    direction of a von Mises-Fisher
+    distribution, and decoding proceeds by sampling this
+    distribution, and concatenating it with sensor
+    geometry metadata and a timecode indicating the relative position
+    in the valid period to decode.
+    Decoding proceeds for all sources, with losses dependent on the
+    characteristics of each source (see
+    supplemental materials S1). Courtesy of
+  \cite{brown2025alphaearthfoundationsembeddingfield}.}
+  \label{fig:alpha_earth_architecture}
+\end{figure}
+
+The block diagram in Figure \ref{fig:alpha_earth_architecture} depicts how
+the architecture summarizes these diverse spatial and temporal
+contexts into a highly compact 64-byte representation. Furthermore,
+its learning paradigm differs significantly; rather than a
+contrastive approach, AlphaEarth relies on a generative
+learning approach. The network employs an implicit decoder that
+attempts to reconstruct the original, multi-source observations and
+metadata directly from this small embedding. By working at the patch
+level rather than the pixel level and focusing on reconstruction,
+this generative approach allows AlphaEarth to explicitly capture
+spatial coherence and physical measurement contexts during the learning phase.
+
+In contrast to TESSERA, AlphaEarth's code and weights are not publicly
+available, and the embeddings are only available under a commercial API.
+
+\subsection{Models overviews}
+
+\section{Experiments and results}
+
+\subsection{Benchmarking setup}
+
+Our main benchmarking task is to predict the crop class of each pixel
+over the PASTIS dataset ("semantic segmentation").
+
+\begin{figure}[ht]
+  \centering
+  \begin{subfigure}{0.49\textwidth}
+    \centering
+    \includegraphics[width=\linewidth
+    page=1]{figures/experiment-setup.drawio.pdf}
+    \caption{With the full PASTIS dataset}
+    \label{fig:experiment_setup_1}
+  \end{subfigure}
+  \begin{subfigure}{0.49\textwidth}
+    \centering
+    \includegraphics[width=\linewidth,
+    page=2]{figures/experiment-setup.drawio.pdf}
+    \caption{With scarce data (30 patches per fold)}
+    \label{fig:experiment_setup_2}
+  \end{subfigure}
+
+  \caption{Training overview of our benchmarking framework.
+    \autoref{fig:experiment_setup_1} shows the training setup with the
+    full PASTIS dataset, while \autoref{fig:experiment_setup_2} shows
+  the training setup with scarce data (30 patches per fold).}
+  \label{fig:experiment_setup}
+\end{figure}
+
+Our project mentor gave us the embeddings of the three
+foundation models (TESSERA, Alpha Earth and ALISE) on the PASTIS dataset.
+Producing those embeddings is computationally expensive (or even cost
+money, e.g. for Alpha Earth), this significantly eased our workload.
+Those embeddings are tensors of shape (PARCEL\_ID, H, W, D) where D is the
+dimension of the embedding. It means that we have one embedding per
+pixel, which is a vector of dimension D.
+
+As seen in \autoref{fig:experiment_setup_1}, we train simple MLPs
+with \texttt{ReLU} activations on top of the FM
+embeddings (one per
+  FM embedding set, e.g one MLP for TESSERA, one MLP for Alpha Earth,
+one for ALISE). Those MLPs are optimized using a cross-entropy loss,
+which is the standard loss for multi-class classification problems.
+The output of the MLPs is a vector of dimension 18, which corresponds
+to the 18 crop labels logits. We apply a \texttt{argmax} function to the
+output of the MLP to obtain the final class. Note that the complexity
+of the classifier does not matter,
+as we want to evaluate the quality of the embeddings produced by the
+foundation models, not the capacity of the classifier.
+
+We use the same folds as the PASTIS paper, 3 for training, 1 for
+validation and 1 for testing.
+We train the MLPs for 200 epochs with a batch size of 32 (16 for
+ALISE due to heavier embeddings) and a
+learning rate of $10^{-3}$ with Adam optimizer.
+We used the Ruche cluster of Université Paris Saclay.
+Specifically the slurm partition
+\href{https://mesocentre.pages.centralesupelec.fr/user_doc/ruche/07_slurm_partitions_description/#gpu-partition}{\texttt{GPU-test}}
+of Ruche cluster, with a training of roughly 20 minutes with four
+V100 GPUs using \texttt{DistributedDataParallel} strategy of
+\cite{Ansel_PyTorch_2_Faster_2024}.
+The code is implemented using \cite{Falcon_PyTorch_Lightning_2019}
+for industry-grade training and logging, and monitored using \cite{wandb}.
+All our training configurations are available in the
+\href{https://github.com/mva-ii/Benchmarking-foundation-models-for-satellite-image-segmentation/blob/614817109e039c89d7eac0b920437a4704235b2d/configurations}{code
+repository}.
+We also provide a
+\href{https://github.com/mva-ii/Benchmarking-foundation-models-for-satellite-image-segmentation/blob/614817109e039c89d7eac0b920437a4704235b2d/notebooks/results.ipynb}{reproducible
+notebook} to plot all the figures of this report.
+
+To compare with a supervised baseline, we also train a U-TAE model on
+the same task. We reuse the code of the original
+paper for training and evaluating. We also use the same
+hyperparameters.
+Training takes roughly 14 hours on
+one V100 GPU. Instead of FM embeddings, it is directly trained on the
+optical channels of the Sentinel-2 satellite.
+
+We evaluate the performance of the models using three metrics: mean
+Intersection over Union (mIoU), F1 Macro and Overall accuracy. Note
+that the \texttt{background} and \texttt{void} classes of the
+PASTIS dataset are
+ignored in the evaluation (as well in the training loss of the MLPs
+and U-TAE).
+
+We also evaluate the performance of the models in a scarce data setting,
+where we only use 30 patches per fold for training (configurations
+suffixed with "\_scarce"), see \autoref{fig:experiment_setup_2}.
+Those folds are
+randomly sampled from the original training folds but maintain a balanced
+class distribution.
+This scarce data setting is particularly relevant for satellite image
+segmentation, as it is often the case that we have limited labeled data.
+
+\subsection{Analysis of results}
+
+\begin{figure}[htbp]
+  \centering
+  \begin{subfigure}{0.49\textwidth}
+    \centering
+    \includegraphics[width=\linewidth]{figures/val_train_miou_all_runs.pdf}
+    \caption{}
+    \label{fig:val_train_miou_all_runs}
+  \end{subfigure}
+  \begin{subfigure}{0.49\textwidth}
+    \centering
+    \includegraphics[width=\linewidth]{figures/val_train_f1_all_runs.pdf}
+    \caption{}
+    \label{fig:val_train_f1_all_runs}
+  \end{subfigure}
+  \caption{Increasing trends of the validation F1 Macro
+    (\autoref{fig:val_train_f1_all_runs}) and mIoU
+    (\autoref{fig:val_train_miou_all_runs}) metrics during training
+    (validation fold). As shows \autoref{fig:val_train_miou_all_runs},
+    U-TAE is trained
+    only for 100 epochs. \autoref{fig:val_train_f1_all_runs} does not
+    show the U-TAE curve as the original implementation does not log
+    the F1 Macro
+  metric during training.}
+  \label{fig:val_train_metrics_all_runs}
+\end{figure}
+
+Over training epochs, benchmarked models successfully learn to segment the
+images, as shown by the increasing trends of the validation F1 Macro
+and mIoU metrics in \autoref{fig:val_train_metrics_all_runs}.
+
+\begin{table}[ht]
+  \centering
+  \caption{Test metrics of the FM-EMBEDDINGS+MLP / U-TAE models on
+    the PASTIS dataset, with the
+    full training set (\autoref{tab:test_metrics_full}) and with scarce data
+    (\autoref{tab:test_metrics_scarce}). Bold values indicate the best
+  performance for each metric.}
+  \label{tab:test_metrics}
+  \begin{subtable}{0.49\textwidth}
+    \centering
+    \begin{tabular}{lccc}
+      \toprule
+      Model & mIoU & F1 Macro & \makecell{Overall \\ accuracy} \\
+      \midrule
+      AlphaEarth & 0.5287 & 0.6526 & 0.8417 \\
+      Tessera    & 0.5607 & 0.7018 & 0.8257 \\
+      ALISE     & 0.6009 & \textbf{0.7235} & 0.8651 \\
+      U-TAE &  \textbf {0.7219} & - &  \textbf{0.9170} \\
+      \bottomrule
+    \end{tabular}
+    \caption{Test metrics}
+    \label{tab:test_metrics_full}
+  \end{subtable}
+  \begin{subtable}{0.49\textwidth}
+    \centering
+    \begin{tabular}{lccc}
+      \toprule
+      Model & mIoU & F1 Macro & \makecell{Overall \\ accuracy} \\
+      \midrule
+      AlphaEarth & 0.2867 & 0.3755 & 0.7267 \\
+      Tessera & 0.4387 & \textbf{0.5765} & 0.7621 \\
+      ALISE & \textbf{0.4482} & 0.5729 & \textbf{0.7898} \\
+      U-TAE & 0.3869 & 0.5115 & 0.7043 \\
+      \bottomrule
+    \end{tabular}
+    \caption{Test metrics with scarce data (30 patches per fold)}
+    \label{tab:test_metrics_scarce}
+  \end{subtable}
+\end{table}
+
+As shown in \autoref{tab:test_metrics}, the supervised approach U-TAE
+achieves the best
+performance on the full training set, while MLP+ALISE-EMBEDDINGS
+performs best in
+the scarce data setting.
+Despite Tessera (released in November 2025) and ALISE (released in
+September 2024) being separated by one year of research,
+ALISE is still a State-Of-The-Art FM in our benchmark.
+The scarce data setting shows that foundation model achieve strong
+performance when we
+have limited labeled data, as they can leverage their pre-training on
+large amounts of unlabeled data to produce useful
+embeddings for downstream tasks. Note that there is a net
+computational cost to using foundation models, as the training of the
+MLPs on top of the FM embeddings is much faster than training a
+supervised model like U-TAE from scratch, with less parameters.
+
+\input{figures/test_f1_per_class_table.tex}
+
+\begin{figure}[ht]
+  \centering
+  \includegraphics{figures/class_count_pastis.pdf}
+  \caption{Class distribution of the PASTIS dataset. Courtesy of
+  \cite{garnot2019satelliteimagetimeseries}}
+  \label{fig:class_count_pastis}
+\end{figure}
+
+As noted in \cite{garnot2022panopticsegmentationsatelliteimage,
+garnot2019satelliteimagetimeseries}, the
+PASTIS dataset is highly imbalanced, with a ratio
+of over 50 between the most and least common classes (see
+\autoref{fig:class_count_pastis}).
+Thus, we provide in \autoref{tab:test_f1_per_class} the F1 score of
+each class for the different models, which gives a more detailed view
+of the performance of the
+models on each class.
+
+\begin{figure}[!htb]
+  \centering
+  \begin{subfigure}{0.49\textwidth}
+    \centering
+    \includegraphics[width=\linewidth]{figures/confusion_matrix_test_alise_ruche_h512_h256_lr0.001.pdf}
+    \caption{MLP+ALISE-EMBEDDINGS}
+    \label{fig:confusion_matrix_test_alise_ruche_h512_h256_lr0}
+  \end{subfigure}
+  \begin{subfigure}{0.49\textwidth}
+    \centering
+    \includegraphics[width=\linewidth]{figures/confusion_matrix_test_alpha_earth_ruche_h512_h256_lr0.001.pdf}
+    \caption{MLP+AlphaEarth-EMBEDDINGS}
+    \label{fig:confusion_matrix_test_alpha_earth_ruche_h512_h256_lr0}
+  \end{subfigure}
+  \begin{subfigure}{0.49\textwidth}
+    \centering
+    \includegraphics[width=\linewidth]{figures/confusion_matrix_test_tessera_ruche_h512_h256_lr0.001.pdf}
+    \caption{MLP+Tessera-EMBEDDINGS}
+    \label{fig:confusion_matrix_test_tessera_ruche_h512_h256_lr0}
+  \end{subfigure}
+  \caption{Confusion matrices on the test fold for foundation models.}
+  \label{fig:confusion_matrices_fm}
+\end{figure}
+
+We also show on \autoref{fig:confusion_matrices_fm}
+the confusion matrix of each FM-EMBEDDINGS+MLP model.
+Unsurprisingly, confusions
+seem to occur between semantically close classes such as
+different cereal types, or Sunflower and Fruits, Vegetable,
+Flower.
+
+\begin{figure}[!htb]
+  \centering
+  \includegraphics{figures/prediction_map_patch_20291.pdf}
+  \caption{Semantic segmentation map (full dataset). Row 1 : Alpha
+    Earth, Row 2
+    : Tessera, Row 3 : ALISE. The first column shows the first three PCA
+    components of the embedding, the second column shows the predicted
+  segmentation map, the third column shows the ground truth segmentation map.}
+  \label{fig:prediction_map_patch_20291}
+\end{figure}
+
+\begin{figure}[!htb]
+  \centering
+  \includegraphics{figures/prediction_map_scarce_patch_20291.pdf}
+  \caption{Semantic segmentation map (scarce dataset). Row 1 :
+    Alpha Earth, Row
+    2 : Tessera, Row 3 : ALISE, Row 4 : U-TAE. The first column shows
+    the first three PCA
+    components of the embedding, the second column shows the predicted
+    segmentation map, the third column shows the ground truth
+    segmentation map. Note that U-TAE embeddings are not available, as
+    U-TAE is trained directly on the optical channels of the Sentinel-2
+  satellite.}
+  \label{fig:prediction_map_scarce_patch_20291}
+\end{figure}
+
+Finally, we show in \autoref{fig:prediction_map_patch_20291} and
+\autoref{fig:prediction_map_scarce_patch_20291} the predicted
+semantic segmentation maps on a test patch.
+The scattered pixels on Tessera predictions shows that it work at a
+pixel level, while the smoother predictions of ALISE and Alpha Earth
+show that they work at the patch level. Note that in those prediction
+maps, the background and void classes are masked out (transparent
+pixels), which lead to clearly defined fields boundaries.
+While this is convenient for visualization, it is not the case for
+industry applications, where we often need to predict the background
+and void classes as well. Thus, it would be interesting to evaluate
+the performance of the models on those classes as well, which is left
+for future work. In the scarce data setting, we can see that the
+predictions are much noisier for U-TAE, which is consistent with the
+performance drop of U-TAE in the scarce data setting compared to the
+FM-EMBEDDINGS+MLP models.
+
+\section{Summary of contributions and future work}
+
+In this report, we propose a standard benchmarking framework to
+evaluate the performance of
+foundation models on the task of satellite image segmentation,
+reproducible and maintainable over time. We evaluate three
+state-of-the-art foundation models (TESSERA, Alpha Earth and ALISE)
+on the PASTIS dataset, and compare their performance to a supervised
+baseline (U-TAE). We show that while supervised methods achieve the best
+performance on the full training set, FM performs
+best in the scarce data setting.
+
+Future work could include evaluating the performance of the models on
+other tasks, such as predicting the background and void classes.
+It would also be interesting to try other geographical regions, as
+the PASTIS dataset is limited to France, or even evaluate the
+transferability of the trained models to different regions on the
+same task. It would be interesting to include more foundation
+models in the benchmark as new models are released.
+We could further improve this benchmark by proving a website with an
+interactive interface to visualize the results and compare the
+different models, with a SDK to easily add new models to the
+benchmark, like \url{https://timeseriesclassification.com/}.
+The practicability of foundation models (e.g. easy training, whole Earth
+coverage, etc.) is good for prototyping applications, such as a
+crop monitoring application e.g, "what-is-this-field.net"
 
 \newpage
+
 \printbibliography
+
+This work was performed using computational resources from the
+“Mésocentre” computing center of Université Paris-Saclay,
+CentraleSupélec and École Normale Supérieure Paris-Saclay supported
+by CNRS and Région Île-de-France
+(https://mesocentre.universite-paris-saclay.fr/).
 
 \newpage
 \begin{appendices}
@@ -66,38 +484,6 @@ Each pixel is associated with a semantic label of 18 crop labels
   \section{Data}
 
   \section{Tables}
-  \begin{table}[ht] % Ajout d'un spécificateur de position
-    \centering % Pour centrer le tableau sur la page
-    \caption{Test metrics}
-    \label{tab:test_metrics}
-    \begin{tabular}{|l| ccc|}
-      \hline
-      Model & mIoU & F1 Macro & Overall accuracy \\ % Ajout d'un
-      % titre de colonne
-      \hline
-      AlphaEarth & 0.5287 & 0.6526 & 0.8417 \\
-      Tessera    & 0.5607 & 0.7018 & 0.8257 \\
-      ALISE      & 0.6009 & \textbf{0.7235} & 0.8651 \\
-      U-TAE &  \textbf {0.7219} & - &  \textbf{0.9170} \\
-      \hline
-    \end{tabular}
-  \end{table}
 
-  \begin{table}[ht]
-    \centering
-    % Réduit légèrement la taille pour que les noms longs rentrent
-    \caption{Test metrics with scarce data (30 patches per fold)}
-    \label{tab:test_metrics_scarce}
-    \begin{tabular}{|l |ccc|}
-      \hline
-      Model & mIoU & F1 Macro & Overall accuracy \\
-      \hline
-      AlphaEarth & 0.2867 & 0.3755 & 0.7267 \\
-      Tessera & 0.4387 & \textbf{0.5765} & 0.7621 \\
-      ALISE & \textbf{0.4482} & 0.5729 & \textbf{0.7898} \\
-      U-TAE & 0.3869 & 0.5115 & 0.7043 \\
-      \hline
-    \end{tabular}
-  \end{table}
 \end{appendices}
 \end{document}
